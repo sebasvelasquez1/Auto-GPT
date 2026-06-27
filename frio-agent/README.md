@@ -20,17 +20,37 @@ render) stay disabled until config flips them on, and every spend action is
 checked against hard caps + the append-only `spend_ledger`. Actions that *reduce*
 spend (kills) can auto-run; actions that *increase* spend require human sign-off.
 
-## Phase 0 (this commit) — runnable skeleton
+## Running it
 
 ```bash
 cd frio-agent
 pip install -e .            # core deps: pydantic, pydantic-settings, sqlalchemy, typer
 
 frio capabilities list                                   # gated tools shown disabled + why
-frio competitors discover --seed "Spiritual Gangster"    # Phase 1a discovery (stub)
+frio competitors discover --seed "Spiritual Gangster"    # Phase 1a discovery
+frio research run --seed "Spiritual Gangster"            # discover -> fetch ads -> teardown
+frio strategist plan --seed "Spiritual Gangster"         # the 30-day testing plan (deliverable)
 frio db init                                             # create tables (dev/test)
 pip install -e '.[dev]' && pytest                        # tests
 ```
+
+### Phase 0 — skeleton
+Config + gated capability registry, schema, pipeline interfaces, CLI.
+
+### Phase 1 — competitor discovery + ad research + strategist (this build)
+- **1a discovery** (`modules/competitors.py`): seeds from a brand (e.g. Spiritual
+  Gangster), expands by audience overlap across providers (Similarweb web-traffic +
+  SparkToro social), scores client similarity, tags direct/indirect/aspirational.
+- **ad research** (`connectors/ad_sources.py`): pulls competitor ads from TikTok
+  Creative Center + Meta Ad Library.
+- **1b strategist** (`modules/strategist.py`): Claude tears each ad into
+  hook/pattern-interrupt/payoff and synthesizes the **30-day creative testing plan**
+  (kill rules + 4-week cadence). Falls back to deterministic heuristics with no key.
+
+> **Offline mode:** every connector + the LLM degrade to deterministic fixtures when
+> API keys are absent, so the pipeline runs end-to-end today. Configure keys
+> (`.env`, see `.env.example`) to swap in live data. Live API calls and the Prefect
+> scheduling wrapper are the remaining Phase-1 follow-ups.
 
 ## Layout
 

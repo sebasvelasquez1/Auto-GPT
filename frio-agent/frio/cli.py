@@ -18,9 +18,13 @@ from .config import load_config
 app = typer.Typer(add_completion=False, help="Frío autonomous commerce agent")
 capabilities_app = typer.Typer(help="Inspect capabilities")
 competitors_app = typer.Typer(help="Competitor discovery (Phase 1a)")
+research_app = typer.Typer(help="Ad research + strategist (Phase 1b)")
+strategist_app = typer.Typer(help="Creative strategist (Phase 1b)")
 db_app = typer.Typer(help="Database")
 app.add_typer(capabilities_app, name="capabilities")
 app.add_typer(competitors_app, name="competitors")
+app.add_typer(research_app, name="research")
+app.add_typer(strategist_app, name="strategist")
 app.add_typer(db_app, name="db")
 
 
@@ -56,6 +60,52 @@ def competitors_discover(
             + (f"  ({c['website']})" if c.get("website") else "")
         )
     typer.echo(json.dumps(results, indent=2))
+
+
+@research_app.command("run")
+def research_run(
+    seed: str = typer.Option(None, help="Seed brand (defaults to config seed_brands)"),
+    competitors: int = typer.Option(5, help="Max competitors to research"),
+    ads: int = typer.Option(5, help="Ads per competitor"),
+    persist: bool = typer.Option(True, help="Persist to the database"),
+) -> None:
+    """Discover competitors, pull their ads, and tear each down."""
+    from .pipeline import run_phase1
+
+    res = run_phase1(seed=seed, limit_competitors=competitors,
+                     ads_per_competitor=ads, persist=persist)
+    if res.offline:
+        typer.echo("⚠ OFFLINE mode (no API keys / LLM) — using deterministic fixtures.\n")
+    typer.echo(f"Seed: {res.seed}")
+    typer.echo(f"Competitors: {len(res.competitors)} | Ads torn down: {len(res.ads)}")
+    if res.ads:
+        t = res.ads[0]["teardown"]
+        typer.echo(f"Sample teardown ({t.get('_engine')}): "
+                   f"hook={t.get('hook')!r} angle={t.get('angle')!r}")
+    if res.persisted:
+        typer.echo(f"Persisted: {res.persisted}")
+
+
+@strategist_app.command("plan")
+def strategist_plan(
+    seed: str = typer.Option(None, help="Seed brand (defaults to config seed_brands)"),
+    out: str = typer.Option(None, help="Write the plan markdown to this path"),
+    persist: bool = typer.Option(True, help="Persist research to the database"),
+) -> None:
+    """Produce the 30-day creative testing plan (the Phase 1 deliverable)."""
+    from .modules.strategist import render_plan_markdown
+    from .pipeline import run_phase1
+
+    res = run_phase1(seed=seed, persist=persist)
+    md = render_plan_markdown(res.plan)
+    if res.offline:
+        typer.echo("⚠ OFFLINE mode (no API keys / LLM) — using deterministic fixtures.\n")
+    if out:
+        with open(out, "w", encoding="utf-8") as fh:
+            fh.write(md)
+        typer.echo(f"Wrote plan to {out}")
+    else:
+        typer.echo(md)
 
 
 @db_app.command("init")
