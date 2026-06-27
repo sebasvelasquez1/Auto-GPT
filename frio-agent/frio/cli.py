@@ -23,6 +23,7 @@ strategist_app = typer.Typer(help="Creative strategist (Phase 1b)")
 product_app = typer.Typer(help="Product origin (Phase 2)")
 creation_app = typer.Typer(help="AI-UGC video creation (Phase 3)")
 optimize_app = typer.Typer(help="Optimize engine: kill/scale rules (Phase 4)")
+commerce_app = typer.Typer(help="Commerce / fulfillment (Phase 5, gated)")
 db_app = typer.Typer(help="Database")
 app.add_typer(capabilities_app, name="capabilities")
 app.add_typer(competitors_app, name="competitors")
@@ -31,6 +32,7 @@ app.add_typer(strategist_app, name="strategist")
 app.add_typer(product_app, name="product")
 app.add_typer(creation_app, name="creation")
 app.add_typer(optimize_app, name="optimize")
+app.add_typer(commerce_app, name="commerce")
 app.add_typer(db_app, name="db")
 
 
@@ -235,6 +237,27 @@ def optimize_run(
                f"Scales: {res.scales} (awaiting approval: {res.awaiting_approval})  "
                f"Holds: {res.holds}")
     typer.echo("Kills reduce spend (safe to auto-run); scale-ups raise spend (need sign-off).")
+
+
+@commerce_app.command("publish")
+def commerce_publish(
+    niche: str = typer.Option(None, help="Niche (defaults to config)"),
+    approve: bool = typer.Option(False, "--approve", help="Human approval to publish"),
+) -> None:
+    """Publish the top demand-validated product to the store (gated + HITL)."""
+    from .pipeline import run_phase5_publish
+
+    res = run_phase5_publish(niche=niche, approve=approve)
+    if not res.product:
+        typer.echo(f"No product: {res.gate_message}")
+        raise typer.Exit(1)
+    typer.echo(f"Product: {res.product['title']}  | pipeline: {res.product['kind']}")
+    if res.listing_id:
+        typer.echo(f"✅ Published: listing={res.listing_id} via {res.provider}")
+    else:
+        typer.echo(f"⛔ Blocked by gate: {res.gate_message}")
+        typer.echo("   (Commerce stays disabled until your seller account is approved "
+                   "and you approve each publish.)")
 
 
 @db_app.command("init")

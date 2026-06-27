@@ -36,6 +36,7 @@ frio creation render --approve                           # Phase 3: render MP4 (
 frio creation carousel --slides 4                        # Phase 3: UGC image carousel brief
 frio creation carousel --slides 4 --approve              # Phase 3: render carousel (gated)
 frio optimize run --demo                                 # Phase 4: kill/scale proposals (synthetic data)
+frio commerce publish --approve                          # Phase 5: publish listing (gated: needs seller approval)
 frio db init                                             # create tables (dev/test)
 pip install -e '.[dev]' && pytest                        # tests
 ```
@@ -88,10 +89,20 @@ executable); scale-ups are spend-increasing (require human approval).** Threshol
 is Phase 6 — here it measures + proposes. `frio optimize run --demo` shows it on
 synthetic data (2 kills, 1 scale-needs-approval, 1 hold).
 
+### Phase 5 — Commerce / fulfillment (this build, GATED)
+`modules/commerce.py` publishes listings and creates orders through the shared
+`Fulfillment` interface — POD via **Printful**, Dropship via **CJ**
+(`connectors/fulfillment.py`, selected by `make_fulfillment`). These are outward,
+money-adjacent actions, so they stay **disabled until `FRIO_SELLER_APPROVED=1`**
+and require explicit human approval every time; dropship publishing also refuses
+non-compliant (retail-arbitrage) products. `sync_sales` pulls shop sales back into
+`metrics_daily` so the optimize engine reads real results.
+
 > **Offline mode:** every connector + the LLM degrade to deterministic fixtures when
 > API keys are absent, so the pipeline runs end-to-end today (offline renders cost
-> $0). Configure keys (`.env`, see `.env.example`) to swap in live data. Live API
-> calls and the Prefect scheduling wrapper are the remaining follow-ups.
+> $0, listings get placeholder ids). Configure keys (`.env`, see `.env.example`) to
+> swap in live data. Live API calls and the Prefect scheduling wrapper are the
+> remaining follow-ups.
 
 ## Layout
 

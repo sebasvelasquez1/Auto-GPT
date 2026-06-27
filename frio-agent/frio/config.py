@@ -55,7 +55,8 @@ class Config(BaseSettings):
     anthropic_api_key: str | None = None
     similarweb_api_key: str | None = None
     fastmoss_api_key: str | None = None
-    printful_api_key: str | None = None
+    printful_api_key: str | None = None  # POD fulfillment
+    cj_api_key: str | None = None  # Dropshipping fulfillment (CJ Dropshipping)
     fal_api_key: str | None = None  # video gen: one key -> Veo/Kling/Runway via fal.ai
     higgsfield_api_key: str | None = None  # video+image: Nano Banana/Soul/Seedance via MCP
     video_provider: str = "veo"  # veo | kling | runway | prizmad | arcads

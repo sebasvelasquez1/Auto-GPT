@@ -202,6 +202,40 @@ def run_phase3_carousel(
 
 
 @dataclass
+class Phase5Result:
+    product: dict | None
+    listing_id: str | None = None
+    provider: str | None = None
+    gate_message: str | None = None
+
+
+def run_phase5_publish(
+    niche: str | None = None,
+    *,
+    approve: bool = False,
+    config: Config | None = None,
+    persist: bool = True,
+) -> Phase5Result:
+    """Phase 5: publish the top demand-validated product (GATED + HITL)."""
+    from .modules import commerce
+
+    config = config or load_config()
+    p2 = run_phase2(niche=niche, config=config, persist=persist)
+    if not p2.products:
+        return Phase5Result(product=None, gate_message="no demand-validated products")
+
+    product = p2.products[0]
+    try:
+        out = commerce.publish_product(
+            product, config, approve=approve,
+            database_url=config.database_url if persist else "sqlite://")
+        return Phase5Result(product=product, listing_id=out["listing_id"],
+                            provider=out["provider"])
+    except PermissionError as exc:
+        return Phase5Result(product=product, gate_message=str(exc))
+
+
+@dataclass
 class Phase4Result:
     proposals: list[dict]
     kills: int

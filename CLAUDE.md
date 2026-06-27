@@ -61,5 +61,5 @@ require human sign-off.
 - Phase 3 — AI-UGC creation: video + image carousels (gated render + spend caps) ✅
   - Creation provider = Higgsfield via MCP (Nano Banana/Soul images + Seedance/Kling/Veo video).
 - Phase 4 — Optimize engine (deterministic kill/scale rules; kills auto, scales need approval) ✅
-- Phase 5 — Commerce/fulfillment (POD: Printful; Dropship: CJ) — GATED — next
-- Phase 6 — Ads + closed loop (TikTok Ads, spend caps + HITL) — GATED
+- Phase 5 — Commerce/fulfillment (POD: Printful; Dropship: CJ) — GATED + HITL ✅
+- Phase 6 — Ads + closed loop (TikTok Ads, spend caps + HITL) — GATED — next
