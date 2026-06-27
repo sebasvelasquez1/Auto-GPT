@@ -92,7 +92,7 @@ class VideoAsset(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     brief_id: Mapped[int | None] = mapped_column(ForeignKey("creative_briefs.id"), nullable=True)
-    provider: Mapped[str] = mapped_column(String(64))  # sora|veo|prizmad|arcads
+    provider: Mapped[str] = mapped_column(String(64))  # veo|kling|runway|prizmad|arcads
     uri: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
     approved: Mapped[bool] = mapped_column(Boolean, default=False)  # HITL render gate

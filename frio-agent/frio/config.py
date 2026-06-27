@@ -45,6 +45,8 @@ class Config(BaseSettings):
     similarweb_api_key: str | None = None
     fastmoss_api_key: str | None = None
     printful_api_key: str | None = None
+    fal_api_key: str | None = None  # video gen: one key -> Veo/Kling/Runway via fal.ai
+    video_provider: str = "veo"  # veo | kling | runway | prizmad | arcads
     tiktok_shop_api_key: str | None = None
     tiktok_ads_api_key: str | None = None
 

@@ -62,7 +62,8 @@ in a later phase.
 ### Phase 3 — AI-UGC video creation (this build)
 `modules/creation.py` turns a demand-validated product + a mined hook into a 30s
 UGC ad brief (`build_brief`, Claude or heuristic), then renders an MP4
-(`connectors/video_gen.py`, representing Sora/Veo/Prizmad). Rendering is **gated**:
+(`connectors/video_gen.py`, provider-agnostic — Veo 3.1 / Kling / Runway via fal.ai,
+or Prizmad/Arcads; **not** Sora, which OpenAI discontinued). Rendering is **gated**:
 `creation.render_video` stays disabled until `FRIO_CREATION_ENABLED=1`, requires
 explicit human approval, and every render passes the per-clip + daily spend caps
 enforced against the append-only `spend_ledger` (`frio/spend.py`). `creation.preview`
