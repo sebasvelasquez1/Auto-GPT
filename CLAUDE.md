@@ -58,5 +58,8 @@ require human sign-off.
 - Phase 0 — skeleton ✅
 - Phase 1 — competitor discovery + ad research + strategist ✅
 - Phase 2 — POD product origin (demand → design → mockup) ✅
-- Phase 3 — AI-UGC video creation (brief → gated render + spend caps) ✅
-- Phase 4 — Optimize engine (deterministic kill/scale rules) — next
+- Phase 3 — AI-UGC creation: video + image carousels (gated render + spend caps) ✅
+  - Creation provider = Higgsfield via MCP (Nano Banana/Soul images + Seedance/Kling/Veo video).
+- Phase 4 — Optimize engine (deterministic kill/scale rules; kills auto, scales need approval) ✅
+- Phase 5 — Commerce/fulfillment (POD: Printful; Dropship: CJ) — GATED — next
+- Phase 6 — Ads + closed loop (TikTok Ads, spend caps + HITL) — GATED

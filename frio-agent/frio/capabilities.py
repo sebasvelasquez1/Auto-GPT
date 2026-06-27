@@ -91,4 +91,6 @@ def capability(
 
 def load_all_capabilities() -> None:
     """Import module side-effects so capabilities self-register."""
-    from .modules import ads, competitors, creation, product_pod, strategist  # noqa: F401
+    from .modules import (  # noqa: F401
+        ads, competitors, creation, optimize, product_pod, strategist,
+    )

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .db.base import init_db, make_session_factory
-from .db.models import Competitor, CompetitorAd, Decision, Product
+from .db.models import Competitor, CompetitorAd, Decision, MetricsDaily, Product
 
 
 def persist_research(
@@ -69,3 +69,27 @@ def persist_products(database_url: str, niche: str, candidates: list[dict],
         ))
         s.commit()
     return {"products": len(candidates)}
+
+
+# Synthetic ad metrics for demoing/testing the optimize engine without live ads.
+DEMO_METRICS = [
+    # (entity_id, spend, impressions, clicks, atc, purchases, revenue)
+    ("creative_A", 25.0, 5000, 10, 0, 0, 0.0),    # kill: $25 spent, 0 ATC
+    ("creative_B", 30.0, 2000, 8, 1, 0, 0.0),     # kill: CTR 0.4% < 1%
+    ("creative_C", 50.0, 4000, 120, 30, 15, 300.0),  # scale: MER 6 on 15 purchases
+    ("creative_D", 10.0, 800, 12, 2, 0, 0.0),     # hold: insufficient data
+]
+
+
+def seed_metrics(database_url: str, rows=None) -> int:
+    """Insert synthetic metrics_daily rows (demo/dev only)."""
+    init_db(database_url)
+    rows = rows if rows is not None else DEMO_METRICS
+    Session = make_session_factory(database_url)
+    with Session() as s:
+        for eid, sp, im, cl, atc, pu, rev in rows:
+            s.add(MetricsDaily(entity_type="creative", entity_id=eid, spend_usd=sp,
+                               impressions=im, clicks=cl, add_to_carts=atc,
+                               purchases=pu, revenue_usd=rev))
+        s.commit()
+    return len(rows)

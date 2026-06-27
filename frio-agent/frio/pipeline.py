@@ -199,3 +199,55 @@ def run_phase3_carousel(
             else:
                 raise
     return result
+
+
+@dataclass
+class Phase4Result:
+    proposals: list[dict]
+    kills: int
+    scales: int
+    holds: int
+    auto_applied: int  # spend-reducing actions safe to auto-apply
+    awaiting_approval: int  # spend-increasing actions that need human sign-off
+
+
+def run_phase4(
+    *,
+    config: Config | None = None,
+    entity_type: str = "creative",
+    seed_demo: bool = False,
+    persist: bool = True,
+) -> Phase4Result:
+    """Evaluate ad metrics -> kill/scale/hold proposals, recorded to decisions.
+
+    Kills are spend-reducing (auto-applicable); scale-ups need human approval.
+    Set ``seed_demo`` to inject synthetic metrics first (no live ads needed).
+    """
+    from dataclasses import asdict
+
+    from . import repository
+    from .db.base import make_session_factory
+    from .modules.optimize import propose_all, record_proposals
+
+    config = config or load_config()
+    if seed_demo:
+        repository.seed_metrics(config.database_url)
+
+    repository.init_db(config.database_url)
+    Session = make_session_factory(config.database_url)
+    with Session() as s:
+        proposals = propose_all(s, config, entity_type)
+        if persist:
+            record_proposals(s, proposals)
+            s.commit()
+
+    kills = [p for p in proposals if p.action == "kill"]
+    scales = [p for p in proposals if p.action == "scale"]
+    holds = [p for p in proposals if p.action == "hold"]
+    return Phase4Result(
+        proposals=[asdict(p) for p in proposals], kills=len(kills), scales=len(scales),
+        holds=len(holds),
+        auto_applied=sum(1 for p in proposals if p.auto_executable),
+        awaiting_approval=sum(1 for p in proposals
+                              if p.action == "scale" and not p.auto_executable),
+    )

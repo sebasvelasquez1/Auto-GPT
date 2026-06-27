@@ -35,6 +35,7 @@ frio creation preview                                    # Phase 3: UGC video br
 frio creation render --approve                           # Phase 3: render MP4 (gated + spend caps)
 frio creation carousel --slides 4                        # Phase 3: UGC image carousel brief
 frio creation carousel --slides 4 --approve              # Phase 3: render carousel (gated)
+frio optimize run --demo                                 # Phase 4: kill/scale proposals (synthetic data)
 frio db init                                             # create tables (dev/test)
 pip install -e '.[dev]' && pytest                        # tests
 ```
@@ -76,6 +77,16 @@ disabled until `FRIO_CREATION_ENABLED=1`, require explicit human approval, and
 every clip/image passes the per-clip / per-image + daily spend caps enforced
 against the append-only `spend_ledger` (`frio/spend.py`). Previews are ungated and
 spend nothing.
+
+### Phase 4 — Optimize engine (this build)
+`modules/optimize.py` is the deterministic money brain (no LLM, ever). `metrics.py`
+aggregates `metrics_daily` into CTR/CPA/MER/CPC; `evaluate()` applies config-driven
+thresholds to emit **kill / scale / hold** proposals recorded to the `decisions`
+log. The safety invariant is enforced in code: **kills are spend-reducing (auto-
+executable); scale-ups are spend-increasing (require human approval).** Thresholds
+(`FRIO_OPT_*`) live in config, not code. Applying proposals to a live ad account
+is Phase 6 — here it measures + proposes. `frio optimize run --demo` shows it on
+synthetic data (2 kills, 1 scale-needs-approval, 1 hold).
 
 > **Offline mode:** every connector + the LLM degrade to deterministic fixtures when
 > API keys are absent, so the pipeline runs end-to-end today (offline renders cost

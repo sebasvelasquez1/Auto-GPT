@@ -38,6 +38,16 @@ class Config(BaseSettings):
     demand_threshold: float = 0.2
     pod_blank: str = "tee"  # default blank product for mockups
 
+    # --- Optimize engine (kill/scale thresholds; in config, not code) ---
+    opt_kill_spend_no_atc_usd: float = 20.0   # spend with 0 add-to-carts -> kill
+    opt_kill_ctr_min: float = 0.01            # CTR floor (1%)
+    opt_kill_min_impressions: int = 1000      # min impressions before CTR judged
+    opt_target_cpa_usd: float = 0.0           # 0 = disabled
+    opt_kill_cpa_multiple: float = 3.0        # CPA > N x target -> kill
+    opt_scale_mer_min: float = 2.0            # MER at/above -> scale candidate
+    opt_scale_min_purchases: int = 3          # need real conversions before scaling
+    opt_scale_budget_step_pct: float = 0.20   # +20% per scale step
+
     # --- Data ---
     database_url: str = "sqlite:///frio.db"
 

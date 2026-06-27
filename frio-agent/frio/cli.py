@@ -22,6 +22,7 @@ research_app = typer.Typer(help="Ad research + strategist (Phase 1b)")
 strategist_app = typer.Typer(help="Creative strategist (Phase 1b)")
 product_app = typer.Typer(help="Product origin (Phase 2)")
 creation_app = typer.Typer(help="AI-UGC video creation (Phase 3)")
+optimize_app = typer.Typer(help="Optimize engine: kill/scale rules (Phase 4)")
 db_app = typer.Typer(help="Database")
 app.add_typer(capabilities_app, name="capabilities")
 app.add_typer(competitors_app, name="competitors")
@@ -29,6 +30,7 @@ app.add_typer(research_app, name="research")
 app.add_typer(strategist_app, name="strategist")
 app.add_typer(product_app, name="product")
 app.add_typer(creation_app, name="creation")
+app.add_typer(optimize_app, name="optimize")
 app.add_typer(db_app, name="db")
 
 
@@ -209,6 +211,30 @@ def creation_carousel(
             typer.echo(f"  slide {sl['slide']}: {sl['uri']}")
     else:
         typer.echo(f"\n⛔ Blocked by gate: {res.gate_message}")
+
+
+@optimize_app.command("run")
+def optimize_run(
+    demo: bool = typer.Option(False, "--demo", help="Seed synthetic metrics first"),
+    persist: bool = typer.Option(True, help="Record proposals to the decisions log"),
+) -> None:
+    """Evaluate ad metrics -> kill/scale/hold proposals (kills auto, scales need OK)."""
+    from .pipeline import run_phase4
+
+    res = run_phase4(seed_demo=demo, persist=persist)
+    if not res.proposals:
+        typer.echo("No metrics found. Try `frio optimize run --demo` to see it work.")
+        return
+    icon = {"kill": "🔪", "scale": "📈", "hold": "⏸️"}
+    for p in res.proposals:
+        gate = "" if p["action"] != "scale" else "  [NEEDS APPROVAL]"
+        auto = "  [auto]" if p["auto_executable"] else ""
+        typer.echo(f"  {icon.get(p['action'],'')} {p['action'].upper():5s} "
+                   f"{p['entity_id']:12s} {p['reason']}{auto}{gate}")
+    typer.echo(f"\nKills: {res.kills} (auto-applied: {res.auto_applied})  "
+               f"Scales: {res.scales} (awaiting approval: {res.awaiting_approval})  "
+               f"Holds: {res.holds}")
+    typer.echo("Kills reduce spend (safe to auto-run); scale-ups raise spend (need sign-off).")
 
 
 @db_app.command("init")
