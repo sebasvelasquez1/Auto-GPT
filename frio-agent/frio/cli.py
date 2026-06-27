@@ -21,12 +21,14 @@ competitors_app = typer.Typer(help="Competitor discovery (Phase 1a)")
 research_app = typer.Typer(help="Ad research + strategist (Phase 1b)")
 strategist_app = typer.Typer(help="Creative strategist (Phase 1b)")
 product_app = typer.Typer(help="Product origin (Phase 2)")
+creation_app = typer.Typer(help="AI-UGC video creation (Phase 3)")
 db_app = typer.Typer(help="Database")
 app.add_typer(capabilities_app, name="capabilities")
 app.add_typer(competitors_app, name="competitors")
 app.add_typer(research_app, name="research")
 app.add_typer(strategist_app, name="strategist")
 app.add_typer(product_app, name="product")
+app.add_typer(creation_app, name="creation")
 app.add_typer(db_app, name="db")
 
 
@@ -132,6 +134,49 @@ def product_discover(
         typer.echo(f"          mockup={p['metadata']['mockup_uri']}")
     if res.persisted:
         typer.echo(f"\nPersisted: {res.persisted}")
+
+
+@creation_app.command("preview")
+def creation_preview(
+    niche: str = typer.Option(None, help="Niche (defaults to config)"),
+    seed: str = typer.Option(None, help="Seed brand for hooks (defaults to config)"),
+) -> None:
+    """Build a UGC ad brief for the top product (spends nothing)."""
+    from .pipeline import run_phase3
+
+    res = run_phase3(niche=niche, seed=seed, approve=False)
+    if not res.product:
+        typer.echo(f"No product: {res.gate_message}")
+        raise typer.Exit(1)
+    typer.echo(f"Product: {res.product['title']}")
+    typer.echo(f"Hook:    {res.brief['hook']}")
+    typer.echo(f"Engine:  {res.brief['_engine']}")
+    typer.echo(f"\nVideo prompt:\n  {res.brief['video_prompt']}")
+    typer.echo(f"\nEstimated render cost: ${res.estimated_cost_usd:.2f} (no spend yet)")
+    typer.echo("Run `frio creation render --approve` to render (gated + spend caps).")
+
+
+@creation_app.command("render")
+def creation_render(
+    niche: str = typer.Option(None, help="Niche (defaults to config)"),
+    seed: str = typer.Option(None, help="Seed brand for hooks (defaults to config)"),
+    approve: bool = typer.Option(False, "--approve", help="Human approval to spend + render"),
+) -> None:
+    """Render the UGC MP4 (gated: needs creation enabled + approval + spend caps)."""
+    from .pipeline import run_phase3
+
+    res = run_phase3(niche=niche, seed=seed, approve=approve)
+    if not approve:
+        typer.echo("Dry run (no --approve): nothing rendered.")
+        typer.echo(f"Would render '{res.brief['hook']}' for ~${res.estimated_cost_usd:.2f}.")
+        return
+    if res.rendered:
+        r = res.rendered
+        tag = " (offline placeholder, $0)" if r["offline"] else ""
+        typer.echo(f"✅ Rendered: {r['uri']}  via {r['provider']}  "
+                   f"cost=${r['cost_usd']:.2f}{tag}")
+    else:
+        typer.echo(f"⛔ Blocked by gate: {res.gate_message}")
 
 
 @db_app.command("init")

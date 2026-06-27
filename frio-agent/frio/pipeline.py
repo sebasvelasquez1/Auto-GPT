@@ -103,3 +103,57 @@ def run_phase2(
         result.persisted = repository.persist_products(
             config.database_url, niche, products, config.demand_threshold)
     return result
+
+
+@dataclass
+class Phase3Result:
+    product: dict | None
+    brief: dict | None
+    estimated_cost_usd: float
+    rendered: dict | None = None  # populated only when approved + gates pass
+    gate_message: str | None = None  # why a render was blocked (if it was)
+
+
+def run_phase3(
+    niche: str | None = None,
+    seed: str | None = None,
+    *,
+    approve: bool = False,
+    config: Config | None = None,
+    persist: bool = True,
+) -> Phase3Result:
+    """Phase 3: pick the top product + hook, build a UGC brief, optionally render.
+
+    Without ``approve`` this is a no-spend preview. With ``approve`` it attempts a
+    render, which still must pass the creation gate + spend caps.
+    """
+    from .modules import creation
+
+    config = config or load_config()
+    llm = make_llm(config)
+
+    p1 = run_phase1(seed=seed, config=config, persist=False)
+    p2 = run_phase2(niche=niche, config=config, persist=False)
+    if not p2.products:
+        return Phase3Result(product=None, brief=None, estimated_cost_usd=0.0,
+                            gate_message="no demand-validated products")
+
+    product = p2.products[0]
+    hooks = p1.plan.get("hook_bank", [])
+    prev = creation.preview(product, hooks, config, llm)
+    result = Phase3Result(product=product, brief=prev["brief"],
+                          estimated_cost_usd=prev["estimated_cost_usd"])
+
+    if approve:
+        try:
+            result.rendered = creation.render_video(
+                prev["brief"], config, approve=True,
+                database_url=config.database_url if persist else "sqlite://")
+        except (PermissionError, Exception) as exc:  # gate / cap blocks are expected
+            from .spend import SpendCapError
+
+            if isinstance(exc, (PermissionError, SpendCapError)):
+                result.gate_message = str(exc)
+            else:
+                raise
+    return result

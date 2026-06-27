@@ -31,6 +31,8 @@ frio competitors discover --seed "Spiritual Gangster"    # Phase 1a discovery
 frio research run --seed "Spiritual Gangster"            # discover -> fetch ads -> teardown
 frio strategist plan --seed "Spiritual Gangster"         # the 30-day testing plan (deliverable)
 frio product discover --niche spirituality               # Phase 2 POD: demand -> design -> mockup
+frio creation preview                                    # Phase 3: UGC ad brief (no spend)
+frio creation render --approve                           # Phase 3: render MP4 (gated + spend caps)
 frio db init                                             # create tables (dev/test)
 pip install -e '.[dev]' && pytest                        # tests
 ```
@@ -57,10 +59,19 @@ blended demand-vs-competition score so low-competition ideas beat saturated ones
 The Dropshipping product origin plugs into the same `make_product_origin` factory
 in a later phase.
 
+### Phase 3 — AI-UGC video creation (this build)
+`modules/creation.py` turns a demand-validated product + a mined hook into a 30s
+UGC ad brief (`build_brief`, Claude or heuristic), then renders an MP4
+(`connectors/video_gen.py`, representing Sora/Veo/Prizmad). Rendering is **gated**:
+`creation.render_video` stays disabled until `FRIO_CREATION_ENABLED=1`, requires
+explicit human approval, and every render passes the per-clip + daily spend caps
+enforced against the append-only `spend_ledger` (`frio/spend.py`). `creation.preview`
+is ungated and spends nothing.
+
 > **Offline mode:** every connector + the LLM degrade to deterministic fixtures when
-> API keys are absent, so the pipeline runs end-to-end today. Configure keys
-> (`.env`, see `.env.example`) to swap in live data. Live API calls and the Prefect
-> scheduling wrapper are the remaining follow-ups.
+> API keys are absent, so the pipeline runs end-to-end today (offline renders cost
+> $0). Configure keys (`.env`, see `.env.example`) to swap in live data. Live API
+> calls and the Prefect scheduling wrapper are the remaining follow-ups.
 
 ## Layout
 
