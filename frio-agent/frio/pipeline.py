@@ -66,3 +66,40 @@ def run_phase1(
         result.persisted = repository.persist_research(
             config.database_url, seed, competitors, ads, plan)
     return result
+
+
+@dataclass
+class Phase2Result:
+    niche: str
+    pipeline: str
+    products: list[dict]
+    offline: bool
+    persisted: dict = field(default_factory=dict)
+
+
+def run_phase2(
+    niche: str | None = None,
+    *,
+    limit: int = 20,
+    config: Config | None = None,
+    persist: bool = True,
+) -> Phase2Result:
+    """Phase 2 product origin (POD by default): demand-validate -> design -> mockup."""
+    from dataclasses import asdict
+
+    from .modules.product_pod import make_product_origin
+
+    config = config or load_config()
+    niche = niche or config.niche
+    origin = make_product_origin(config)
+    products = [asdict(p) for p in origin.discover(niche, limit=limit)]
+    offline = any(p["metadata"].get("offline") for p in products) if products else True
+
+    result = Phase2Result(niche=niche, pipeline=config.pipeline, products=products,
+                          offline=offline)
+    if persist:
+        from . import repository
+
+        result.persisted = repository.persist_products(
+            config.database_url, niche, products, config.demand_threshold)
+    return result

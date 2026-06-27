@@ -30,6 +30,7 @@ frio capabilities list                                   # gated tools shown dis
 frio competitors discover --seed "Spiritual Gangster"    # Phase 1a discovery
 frio research run --seed "Spiritual Gangster"            # discover -> fetch ads -> teardown
 frio strategist plan --seed "Spiritual Gangster"         # the 30-day testing plan (deliverable)
+frio product discover --niche spirituality               # Phase 2 POD: demand -> design -> mockup
 frio db init                                             # create tables (dev/test)
 pip install -e '.[dev]' && pytest                        # tests
 ```
@@ -47,10 +48,19 @@ Config + gated capability registry, schema, pipeline interfaces, CLI.
   hook/pattern-interrupt/payoff and synthesizes the **30-day creative testing plan**
   (kill rules + 4-week cadence). Falls back to deterministic heuristics with no key.
 
+### Phase 2 — POD product origin (this build)
+`modules/product_pod.py` implements the `ProductOrigin` interface for POD:
+validate search demand (`connectors/demand.py`, eRank-style) → keep ideas above
+`FRIO_DEMAND_THRESHOLD` → generate a design (`connectors/design_gen.py`) and a
+product mockup (`connectors/mockups.py`, Printful) for each survivor. Ranks by a
+blended demand-vs-competition score so low-competition ideas beat saturated ones.
+The Dropshipping product origin plugs into the same `make_product_origin` factory
+in a later phase.
+
 > **Offline mode:** every connector + the LLM degrade to deterministic fixtures when
 > API keys are absent, so the pipeline runs end-to-end today. Configure keys
 > (`.env`, see `.env.example`) to swap in live data. Live API calls and the Prefect
-> scheduling wrapper are the remaining Phase-1 follow-ups.
+> scheduling wrapper are the remaining follow-ups.
 
 ## Layout
 

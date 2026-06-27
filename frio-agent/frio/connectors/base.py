@@ -57,3 +57,72 @@ class AdSource(Protocol):
     def available(self) -> bool: ...
 
     def fetch_ads(self, advertiser: str, limit: int = 10) -> list[RawAd]: ...
+
+
+# --- Phase 2 (POD product origin) -------------------------------------------
+
+
+@dataclass
+class DemandSignal:
+    """Search-demand validation for a keyword/design idea (Etsy/eRank style)."""
+
+    keyword: str
+    search_volume: int
+    competition: float  # 0..1 (higher = more saturated)
+    source: str  # erank | everbee | marmalead
+    score: float = 0.0  # 0..1 blended demand-vs-competition score
+    meta: dict = field(default_factory=dict)
+
+
+@dataclass
+class DesignAsset:
+    """A generated design (image) for a POD product."""
+
+    prompt: str
+    uri: str | None
+    provider: str  # dalle | ideogram | midjourney
+    meta: dict = field(default_factory=dict)
+
+
+@dataclass
+class MockupAsset:
+    """A product mockup rendered from a design."""
+
+    design_uri: str | None
+    uri: str | None
+    blank: str  # e.g. "tee", "hoodie"
+    provider: str  # printful | automated_mockups | dynamic_mockups
+    meta: dict = field(default_factory=dict)
+
+
+@runtime_checkable
+class DemandProvider(Protocol):
+    """Validates search demand for a keyword/design idea."""
+
+    name: str
+
+    def available(self) -> bool: ...
+
+    def validate(self, keyword: str) -> DemandSignal: ...
+
+
+@runtime_checkable
+class DesignGenerator(Protocol):
+    """Generates a design image from a prompt."""
+
+    name: str
+
+    def available(self) -> bool: ...
+
+    def generate(self, prompt: str) -> DesignAsset: ...
+
+
+@runtime_checkable
+class MockupGenerator(Protocol):
+    """Renders a product mockup from a design."""
+
+    name: str
+
+    def available(self) -> bool: ...
+
+    def render(self, design: DesignAsset, blank: str = "tee") -> MockupAsset: ...

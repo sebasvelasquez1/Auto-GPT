@@ -20,11 +20,13 @@ capabilities_app = typer.Typer(help="Inspect capabilities")
 competitors_app = typer.Typer(help="Competitor discovery (Phase 1a)")
 research_app = typer.Typer(help="Ad research + strategist (Phase 1b)")
 strategist_app = typer.Typer(help="Creative strategist (Phase 1b)")
+product_app = typer.Typer(help="Product origin (Phase 2)")
 db_app = typer.Typer(help="Database")
 app.add_typer(capabilities_app, name="capabilities")
 app.add_typer(competitors_app, name="competitors")
 app.add_typer(research_app, name="research")
 app.add_typer(strategist_app, name="strategist")
+app.add_typer(product_app, name="product")
 app.add_typer(db_app, name="db")
 
 
@@ -106,6 +108,30 @@ def strategist_plan(
         typer.echo(f"Wrote plan to {out}")
     else:
         typer.echo(md)
+
+
+@product_app.command("discover")
+def product_discover(
+    niche: str = typer.Option(None, help="Niche (defaults to config niche)"),
+    limit: int = typer.Option(20, help="Max products"),
+    persist: bool = typer.Option(True, help="Persist to the database"),
+) -> None:
+    """Phase 2: demand-validate design ideas, then generate design + mockup."""
+    from .pipeline import run_phase2
+
+    res = run_phase2(niche=niche, limit=limit, persist=persist)
+    if res.offline:
+        typer.echo("⚠ OFFLINE mode (no API keys) — using deterministic fixtures.\n")
+    typer.echo(f"Niche: {res.niche} | Pipeline: {res.pipeline}")
+    typer.echo(f"Demand-validated products: {len(res.products)}\n")
+    for p in res.products:
+        d = p["metadata"]["demand"]
+        typer.echo(f"  [{d['score']:.2f}] {p['title']}  "
+                   f"(vol={d['search_volume']}, comp={d['competition']})")
+        typer.echo(f"          design={p['metadata']['design_uri']}")
+        typer.echo(f"          mockup={p['metadata']['mockup_uri']}")
+    if res.persisted:
+        typer.echo(f"\nPersisted: {res.persisted}")
 
 
 @db_app.command("init")

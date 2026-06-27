@@ -32,6 +32,11 @@ class Config(BaseSettings):
     per_campaign_spend_cap_usd: float = 0.0
     per_clip_cost_cap_usd: float = 0.0
 
+    # --- Product selection ---
+    # Min blended demand-vs-competition score (0..1) for a POD design to pass.
+    demand_threshold: float = 0.2
+    pod_blank: str = "tee"  # default blank product for mockups
+
     # --- Data ---
     database_url: str = "sqlite:///frio.db"
 

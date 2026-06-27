@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .db.base import init_db, make_session_factory
-from .db.models import Competitor, CompetitorAd, Decision
+from .db.models import Competitor, CompetitorAd, Decision, Product
 
 
 def persist_research(
@@ -45,3 +45,27 @@ def persist_research(
         ))
         s.commit()
     return {"competitors": len(competitors), "ads": len(ads)}
+
+
+def persist_products(database_url: str, niche: str, candidates: list[dict],
+                     threshold: float) -> dict:
+    """Save POD/Dropship product candidates and an audit Decision."""
+    init_db(database_url)
+    Session = make_session_factory(database_url)
+    with Session() as s:
+        for c in candidates:
+            meta = c.get("metadata", {})
+            score = (meta.get("demand") or {}).get("score", 0.0)
+            s.add(Product(
+                kind=c["kind"], title=c["title"], source=c["source"],
+                external_id=c.get("external_id"),
+                demand_validated=score >= threshold, compliant=c.get("compliant", True),
+                metadata_=meta,
+            ))
+        s.add(Decision(
+            kind="product_select", actor="engine", target=niche,
+            rationale="Phase 2 product origin (demand-validated)",
+            payload={"count": len(candidates), "threshold": threshold},
+        ))
+        s.commit()
+    return {"products": len(candidates)}

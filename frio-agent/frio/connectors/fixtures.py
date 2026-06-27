@@ -61,3 +61,35 @@ def offline_ads_for(advertiser: str) -> list[dict]:
             "media_url": None,
         }
     ])
+
+
+# --- Phase 2 (POD) fixtures --------------------------------------------------
+
+# Candidate design ideas/keywords for the niche (would come from Phase 1 angles
+# + eRank keyword mining in production).
+POD_KEYWORD_IDEAS: dict[str, list[str]] = {
+    "spirituality": [
+        "manifestation journal",
+        "369 method tee",
+        "moon phase crystal print",
+        "spiritual gangster mantra",
+        "chakra alignment hoodie",
+    ],
+}
+
+# Offline eRank-style demand per keyword: (search_volume, competition 0..1).
+ERANK_DEMAND: dict[str, tuple[int, float]] = {
+    "manifestation journal": (18000, 0.62),
+    "369 method tee": (4200, 0.34),
+    "moon phase crystal print": (2600, 0.41),
+    "spiritual gangster mantra": (900, 0.28),
+    "chakra alignment hoodie": (5400, 0.71),
+}
+
+
+def offline_demand(keyword: str) -> tuple[int, float]:
+    return ERANK_DEMAND.get(keyword.strip().lower(), (1000, 0.5))
+
+
+def offline_keyword_ideas(niche: str) -> list[str]:
+    return POD_KEYWORD_IDEAS.get(niche.strip().lower(), [f"{niche} design"])
