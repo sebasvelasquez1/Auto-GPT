@@ -31,15 +31,21 @@ def spent_today(session, category: str) -> float:
 
 
 def guard_and_record(session, config: Config, *, category: str, amount: float,
-                     reference: str | None = None) -> None:
-    """Raise if ``amount`` breaches the per-item or daily cap; else append a ledger row."""
+                     reference: str | None = None, per_item_cap: float | None = None) -> None:
+    """Raise if ``amount`` breaches the per-item or daily cap; else append a ledger row.
+
+    ``per_item_cap`` may be passed explicitly (e.g. per-image vs per-clip); if None
+    it is derived from the category. Daily caps aggregate per category, so video and
+    image renders share the "creation" daily budget.
+    """
     if amount < 0:
         raise SpendCapError("negative spend amounts are not allowed")
 
-    per_item_cap = (
-        config.per_clip_cost_cap_usd if category == "creation"
-        else config.per_campaign_spend_cap_usd
-    )
+    if per_item_cap is None:
+        per_item_cap = (
+            config.per_clip_cost_cap_usd if category == "creation"
+            else config.per_campaign_spend_cap_usd
+        )
     if amount > per_item_cap:
         raise SpendCapError(
             f"{category} cost ${amount:.2f} exceeds per-item cap ${per_item_cap:.2f} "

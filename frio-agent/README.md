@@ -31,8 +31,10 @@ frio competitors discover --seed "Spiritual Gangster"    # Phase 1a discovery
 frio research run --seed "Spiritual Gangster"            # discover -> fetch ads -> teardown
 frio strategist plan --seed "Spiritual Gangster"         # the 30-day testing plan (deliverable)
 frio product discover --niche spirituality               # Phase 2 POD: demand -> design -> mockup
-frio creation preview                                    # Phase 3: UGC ad brief (no spend)
+frio creation preview                                    # Phase 3: UGC video brief (no spend)
 frio creation render --approve                           # Phase 3: render MP4 (gated + spend caps)
+frio creation carousel --slides 4                        # Phase 3: UGC image carousel brief
+frio creation carousel --slides 4 --approve              # Phase 3: render carousel (gated)
 frio db init                                             # create tables (dev/test)
 pip install -e '.[dev]' && pytest                        # tests
 ```
@@ -59,15 +61,21 @@ blended demand-vs-competition score so low-competition ideas beat saturated ones
 The Dropshipping product origin plugs into the same `make_product_origin` factory
 in a later phase.
 
-### Phase 3 — AI-UGC video creation (this build)
-`modules/creation.py` turns a demand-validated product + a mined hook into a 30s
-UGC ad brief (`build_brief`, Claude or heuristic), then renders an MP4
-(`connectors/video_gen.py`, provider-agnostic — Veo 3.1 / Kling / Runway via fal.ai,
-or Prizmad/Arcads; **not** Sora, which OpenAI discontinued). Rendering is **gated**:
-`creation.render_video` stays disabled until `FRIO_CREATION_ENABLED=1`, requires
-explicit human approval, and every render passes the per-clip + daily spend caps
-enforced against the append-only `spend_ledger` (`frio/spend.py`). `creation.preview`
-is ungated and spends nothing.
+### Phase 3 — AI-UGC creation: video + image carousels (this build)
+`modules/creation.py` turns a demand-validated product + a mined hook into:
+- a 30s **UGC video** brief → MP4 (`connectors/video_gen.py`), and
+- a **UGC image carousel** brief → per-slide images (`connectors/image_ugc.py`).
+
+Provider-agnostic and MCP-native by design. Primary plan: **Higgsfield** (one
+official MCP server → Nano Banana Pro / Soul 2.0 images for carousels + Seedance/
+Kling/Veo video + avatars + virality scoring); alternatives: Veo/Kling/Runway via
+fal.ai, Arcads/Prizmad. (**Not** Sora — OpenAI discontinued it.)
+
+Rendering is **gated**: `creation.render_video` / `creation.render_carousel` stay
+disabled until `FRIO_CREATION_ENABLED=1`, require explicit human approval, and
+every clip/image passes the per-clip / per-image + daily spend caps enforced
+against the append-only `spend_ledger` (`frio/spend.py`). Previews are ungated and
+spend nothing.
 
 > **Offline mode:** every connector + the LLM degrade to deterministic fixtures when
 > API keys are absent, so the pipeline runs end-to-end today (offline renders cost

@@ -179,6 +179,38 @@ def creation_render(
         typer.echo(f"⛔ Blocked by gate: {res.gate_message}")
 
 
+@creation_app.command("carousel")
+def creation_carousel(
+    niche: str = typer.Option(None, help="Niche (defaults to config)"),
+    seed: str = typer.Option(None, help="Seed brand for hooks (defaults to config)"),
+    slides: int = typer.Option(4, help="Number of carousel slides"),
+    approve: bool = typer.Option(False, "--approve", help="Human approval to spend + render"),
+) -> None:
+    """Build (and optionally render) a UGC image carousel (gated + spend caps)."""
+    from .pipeline import run_phase3_carousel
+
+    res = run_phase3_carousel(niche=niche, seed=seed, slides=slides, approve=approve)
+    if not res.product:
+        typer.echo(f"No product: {res.gate_message}")
+        raise typer.Exit(1)
+    typer.echo(f"Product: {res.product['title']}  | slides: {len(res.brief['slides'])}")
+    for sl in res.brief["slides"]:
+        typer.echo(f"  • {sl['caption']}")
+    typer.echo(f"\nEstimated cost: ${res.estimated_cost_usd:.2f}")
+    if not approve:
+        typer.echo("Dry run (no --approve): nothing rendered. Add --approve to render.")
+        return
+    if res.rendered:
+        r = res.rendered
+        tag = " (offline placeholders, $0)" if r["offline"] else ""
+        typer.echo(f"\n✅ Rendered {len(r['slides'])} slides, "
+                   f"total=${r['total_cost_usd']:.2f}{tag}")
+        for sl in r["slides"]:
+            typer.echo(f"  slide {sl['slide']}: {sl['uri']}")
+    else:
+        typer.echo(f"\n⛔ Blocked by gate: {res.gate_message}")
+
+
 @db_app.command("init")
 def db_init() -> None:
     """Create all tables (dev/test convenience; Alembic owns prod migrations)."""

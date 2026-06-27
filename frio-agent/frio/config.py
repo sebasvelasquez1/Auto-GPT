@@ -30,7 +30,8 @@ class Config(BaseSettings):
     # --- Spend caps (hard ceilings enforced against the spend ledger) ---
     daily_spend_cap_usd: float = 0.0
     per_campaign_spend_cap_usd: float = 0.0
-    per_clip_cost_cap_usd: float = 0.0
+    per_clip_cost_cap_usd: float = 0.0   # per AI-UGC video clip
+    per_image_cost_cap_usd: float = 0.0  # per AI-UGC image (carousel slide)
 
     # --- Product selection ---
     # Min blended demand-vs-competition score (0..1) for a POD design to pass.
@@ -46,7 +47,9 @@ class Config(BaseSettings):
     fastmoss_api_key: str | None = None
     printful_api_key: str | None = None
     fal_api_key: str | None = None  # video gen: one key -> Veo/Kling/Runway via fal.ai
+    higgsfield_api_key: str | None = None  # video+image: Nano Banana/Soul/Seedance via MCP
     video_provider: str = "veo"  # veo | kling | runway | prizmad | arcads
+    image_provider: str = "nano_banana"  # nano_banana | soul | flux | gpt_image
     tiktok_shop_api_key: str | None = None
     tiktok_ads_api_key: str | None = None
 

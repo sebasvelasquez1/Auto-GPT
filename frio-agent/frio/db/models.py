@@ -99,6 +99,21 @@ class VideoAsset(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class ImageAsset(Base):
+    """A generated UGC image — e.g. one slide of a carousel ad."""
+
+    __tablename__ = "image_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    brief_id: Mapped[int | None] = mapped_column(ForeignKey("creative_briefs.id"), nullable=True)
+    provider: Mapped[str] = mapped_column(String(64))  # nano_banana|soul|flux|gpt_image
+    uri: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    slide_index: Mapped[int] = mapped_column(Integer, default=0)
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    approved: Mapped[bool] = mapped_column(Boolean, default=False)  # HITL gate
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class MetricsDaily(Base):
     """Daily ad/sales metrics feeding the optimize engine."""
 

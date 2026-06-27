@@ -157,3 +157,45 @@ def run_phase3(
             else:
                 raise
     return result
+
+
+def run_phase3_carousel(
+    niche: str | None = None,
+    seed: str | None = None,
+    *,
+    slides: int = 4,
+    approve: bool = False,
+    config: Config | None = None,
+    persist: bool = True,
+) -> Phase3Result:
+    """Phase 3 (carousel): top product + hook -> image-carousel brief, optional render."""
+    from .modules import creation
+
+    config = config or load_config()
+    llm = make_llm(config)
+
+    p1 = run_phase1(seed=seed, config=config, persist=False)
+    p2 = run_phase2(niche=niche, config=config, persist=False)
+    if not p2.products:
+        return Phase3Result(product=None, brief=None, estimated_cost_usd=0.0,
+                            gate_message="no demand-validated products")
+
+    product = p2.products[0]
+    hooks = p1.plan.get("hook_bank", [])
+    prev = creation.preview_carousel(product, hooks, config, slides, llm)
+    result = Phase3Result(product=product, brief=prev["brief"],
+                          estimated_cost_usd=prev["estimated_cost_usd"])
+
+    if approve:
+        try:
+            result.rendered = creation.render_carousel(
+                prev["brief"], config, approve=True,
+                database_url=config.database_url if persist else "sqlite://")
+        except (PermissionError, Exception) as exc:
+            from .spend import SpendCapError
+
+            if isinstance(exc, (PermissionError, SpendCapError)):
+                result.gate_message = str(exc)
+            else:
+                raise
+    return result
