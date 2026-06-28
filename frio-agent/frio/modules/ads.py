@@ -72,7 +72,8 @@ def scale_campaign(external_id: str, new_daily_budget_usd: float, config: Config
         camp = s.query(Campaign).filter_by(external_id=external_id).first()
         old = camp.daily_budget_usd if camp else 0.0
         delta = max(0.0, new_daily_budget_usd - old)
-        # Only the *increase* commits new daily spend.
+        # New budget vs per-campaign cap is already validated above; here we only
+        # commit the *increase* (delta) to the daily ledger / daily-cap check.
         guard_and_record(s, config, category="ads", amount=delta,
                          reference=f"scale:{external_id}",
                          per_item_cap=config.per_campaign_spend_cap_usd)

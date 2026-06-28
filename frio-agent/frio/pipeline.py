@@ -145,17 +145,14 @@ def run_phase3(
                           estimated_cost_usd=prev["estimated_cost_usd"])
 
     if approve:
+        from .spend import SpendCapError
+
         try:
             result.rendered = creation.render_video(
                 prev["brief"], config, approve=True,
                 database_url=config.database_url if persist else "sqlite://")
-        except (PermissionError, Exception) as exc:  # gate / cap blocks are expected
-            from .spend import SpendCapError
-
-            if isinstance(exc, (PermissionError, SpendCapError)):
-                result.gate_message = str(exc)
-            else:
-                raise
+        except (PermissionError, SpendCapError) as exc:  # gate / cap blocks are expected
+            result.gate_message = str(exc)
     return result
 
 
@@ -187,17 +184,14 @@ def run_phase3_carousel(
                           estimated_cost_usd=prev["estimated_cost_usd"])
 
     if approve:
+        from .spend import SpendCapError
+
         try:
             result.rendered = creation.render_carousel(
                 prev["brief"], config, approve=True,
                 database_url=config.database_url if persist else "sqlite://")
-        except (PermissionError, Exception) as exc:
-            from .spend import SpendCapError
-
-            if isinstance(exc, (PermissionError, SpendCapError)):
-                result.gate_message = str(exc)
-            else:
-                raise
+        except (PermissionError, SpendCapError) as exc:  # gate / cap blocks are expected
+            result.gate_message = str(exc)
     return result
 
 

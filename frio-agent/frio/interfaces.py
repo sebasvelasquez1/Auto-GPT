@@ -21,7 +21,7 @@ class ProductCandidate:
     design (+ blank/provider).
     """
 
-    external_id: str
+    external_id: str | None
     title: str
     source: str  # e.g. "cj", "zendrop", "printful", "ai-design"
     kind: str  # "dropship" | "pod"

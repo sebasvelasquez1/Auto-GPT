@@ -17,8 +17,9 @@ Z = {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}
 
 
 def wilson_interval(successes: int, trials: int, z: float = 1.96) -> tuple[float, float]:
-    if trials <= 0:
+    if trials <= 0 or successes < 0:
         return (0.0, 1.0)
+    successes = min(successes, trials)  # a rate can't exceed 1
     p = successes / trials
     denom = 1 + z * z / trials
     center = (p + z * z / (2 * trials)) / denom
@@ -47,8 +48,8 @@ def thompson_allocation(arms: list[tuple[str, int, int]], total_budget: float,
     rng = random.Random(seed)
     samples = {}
     for aid, succ, trials in arms:
-        succ = max(0, succ)
-        failures = max(0, trials - succ)
+        succ = min(max(0, succ), max(0, trials))  # clamp: 0 <= successes <= trials
+        failures = max(0, trials) - succ
         samples[aid] = rng.betavariate(succ + 1, failures + 1)
     total = sum(samples.values()) or 1.0
     return {aid: round(total_budget * v / total, 2) for aid, v in samples.items()}
