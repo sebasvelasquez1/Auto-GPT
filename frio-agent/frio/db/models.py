@@ -114,6 +114,20 @@ class ImageAsset(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class Campaign(Base):
+    """A (live or offline) ad campaign launched via the ads connector."""
+
+    __tablename__ = "campaigns"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    external_id: Mapped[str] = mapped_column(String(128), index=True)
+    name: Mapped[str] = mapped_column(String(256))
+    status: Mapped[str] = mapped_column(String(32), default="active")  # active|paused
+    daily_budget_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    provider: Mapped[str] = mapped_column(String(64), default="tiktok_ads")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class MetricsDaily(Base):
     """Daily ad/sales metrics feeding the optimize engine."""
 

@@ -62,4 +62,8 @@ require human sign-off.
   - Creation provider = Higgsfield via MCP (Nano Banana/Soul images + Seedance/Kling/Veo video).
 - Phase 4 — Optimize engine (deterministic kill/scale rules; kills auto, scales need approval) ✅
 - Phase 5 — Commerce/fulfillment (POD: Printful; Dropship: CJ) — GATED + HITL ✅
-- Phase 6 — Ads + closed loop (TikTok Ads, spend caps + HITL) — GATED — next
+- Phase 6 — Ads + closed loop (TikTok Ads, spend caps + HITL) — GATED ✅
+
+All 7 phases built end-to-end (offline-safe, 60 tests). Remaining work = finishing
+each connector's LIVE API call (gating/caps/audit already done) + optional Prefect
+scheduling wrapper + the Dropship product-origin (Phase 2A) sibling to POD.

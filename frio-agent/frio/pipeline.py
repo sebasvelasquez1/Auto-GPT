@@ -202,6 +202,50 @@ def run_phase3_carousel(
 
 
 @dataclass
+class Phase6LaunchResult:
+    name: str
+    campaign_id: str | None = None
+    daily_budget_usd: float = 0.0
+    gate_message: str | None = None
+
+
+def run_phase6_launch(
+    name: str,
+    daily_budget_usd: float,
+    *,
+    approve: bool = False,
+    config: Config | None = None,
+) -> Phase6LaunchResult:
+    """Phase 6: launch a live campaign (MOST GATED + spend caps + HITL)."""
+    from .modules import ads
+    from .spend import SpendCapError
+
+    config = config or load_config()
+    try:
+        out = ads.launch_campaign(name, daily_budget_usd, config, approve=approve)
+        return Phase6LaunchResult(name=name, campaign_id=out["campaign_id"],
+                                  daily_budget_usd=out["daily_budget_usd"])
+    except (PermissionError, SpendCapError) as exc:
+        return Phase6LaunchResult(name=name, gate_message=str(exc))
+
+
+def run_phase6_loop(
+    *,
+    config: Config | None = None,
+    entity_type: str = "creative",
+    seed_demo: bool = False,
+) -> dict:
+    """Phase 6 closed loop: metrics -> auto-kill losers + surface scale candidates."""
+    from . import repository
+    from .modules import ads
+
+    config = config or load_config()
+    if seed_demo:
+        repository.seed_metrics(config.database_url)
+    return ads.run_closed_loop(config, entity_type=entity_type)
+
+
+@dataclass
 class Phase5Result:
     product: dict | None
     listing_id: str | None = None

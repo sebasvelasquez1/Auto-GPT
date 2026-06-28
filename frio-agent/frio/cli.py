@@ -24,6 +24,7 @@ product_app = typer.Typer(help="Product origin (Phase 2)")
 creation_app = typer.Typer(help="AI-UGC video creation (Phase 3)")
 optimize_app = typer.Typer(help="Optimize engine: kill/scale rules (Phase 4)")
 commerce_app = typer.Typer(help="Commerce / fulfillment (Phase 5, gated)")
+ads_app = typer.Typer(help="Live ads + closed loop (Phase 6, most gated)")
 db_app = typer.Typer(help="Database")
 app.add_typer(capabilities_app, name="capabilities")
 app.add_typer(competitors_app, name="competitors")
@@ -33,6 +34,7 @@ app.add_typer(product_app, name="product")
 app.add_typer(creation_app, name="creation")
 app.add_typer(optimize_app, name="optimize")
 app.add_typer(commerce_app, name="commerce")
+app.add_typer(ads_app, name="ads")
 app.add_typer(db_app, name="db")
 
 
@@ -258,6 +260,38 @@ def commerce_publish(
         typer.echo(f"⛔ Blocked by gate: {res.gate_message}")
         typer.echo("   (Commerce stays disabled until your seller account is approved "
                    "and you approve each publish.)")
+
+
+@ads_app.command("launch")
+def ads_launch(
+    name: str = typer.Option("frio-test", help="Campaign name"),
+    budget: float = typer.Option(5.0, help="Daily budget (USD)"),
+    approve: bool = typer.Option(False, "--approve", help="Human approval to spend"),
+) -> None:
+    """Launch a live TikTok campaign (gated: needs ads enabled + approval + caps)."""
+    from .pipeline import run_phase6_launch
+
+    res = run_phase6_launch(name, budget, approve=approve)
+    if res.campaign_id:
+        typer.echo(f"✅ Launched: {res.campaign_id}  ${res.daily_budget_usd:.2f}/day")
+    else:
+        typer.echo(f"⛔ Blocked by gate: {res.gate_message}")
+
+
+@ads_app.command("loop")
+def ads_loop(
+    demo: bool = typer.Option(False, "--demo", help="Seed synthetic metrics first"),
+) -> None:
+    """Run the closed loop: auto-kill losers, surface winners for your approval."""
+    from .pipeline import run_phase6_loop
+
+    res = run_phase6_loop(seed_demo=demo)
+    typer.echo(f"🔪 Kills auto-applied: {res['applied_kills']}")
+    typer.echo(f"📈 Scale candidates awaiting your approval: {res['awaiting_approval']}")
+    for p in res["pending_scales"]:
+        typer.echo(f"   • {p['entity_id']}: {p['reason']}")
+    typer.echo("\nKills run automatically (cut spend); scale-ups never auto-run "
+               "(they raise spend — your call).")
 
 
 @db_app.command("init")

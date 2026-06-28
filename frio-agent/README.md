@@ -37,6 +37,8 @@ frio creation carousel --slides 4                        # Phase 3: UGC image ca
 frio creation carousel --slides 4 --approve              # Phase 3: render carousel (gated)
 frio optimize run --demo                                 # Phase 4: kill/scale proposals (synthetic data)
 frio commerce publish --approve                          # Phase 5: publish listing (gated: needs seller approval)
+frio ads launch --budget 5 --approve                     # Phase 6: launch campaign (gated + spend caps)
+frio ads loop --demo                                     # Phase 6: closed loop (auto-kill, surface scales)
 frio db init                                             # create tables (dev/test)
 pip install -e '.[dev]' && pytest                        # tests
 ```
@@ -98,11 +100,20 @@ and require explicit human approval every time; dropship publishing also refuses
 non-compliant (retail-arbitrage) products. `sync_sales` pulls shop sales back into
 `metrics_daily` so the optimize engine reads real results.
 
+### Phase 6 — Live ads + closed loop (this build, MOST GATED)
+`modules/ads.py` launches/scales TikTok campaigns (`connectors/tiktok_ads.py`) and
+runs the closed loop. Launch + scale stay disabled until `FRIO_ADS_LIVE_ENABLED=1`
+**and** `FRIO_SELLER_APPROVED=1`, require explicit approval, and every committed
+dollar passes the per-campaign + daily caps on the `spend_ledger` (hard stop). The
+closed loop reads metrics → optimize proposals and applies them asymmetrically:
+**kills auto-apply (cut spend); scale-ups are only ever surfaced for human approval.**
+
 > **Offline mode:** every connector + the LLM degrade to deterministic fixtures when
-> API keys are absent, so the pipeline runs end-to-end today (offline renders cost
-> $0, listings get placeholder ids). Configure keys (`.env`, see `.env.example`) to
-> swap in live data. Live API calls and the Prefect scheduling wrapper are the
-> remaining follow-ups.
+> API keys are absent, so the whole loop runs end-to-end today (offline renders cost
+> $0, listings/campaigns get placeholder ids). Configure keys (`.env`, see
+> `.env.example`) to swap in live data; the remaining follow-up is finishing each
+> connector's live API call (the gating, caps, and audit logging are done) plus an
+> optional Prefect scheduling wrapper.
 
 ## Layout
 

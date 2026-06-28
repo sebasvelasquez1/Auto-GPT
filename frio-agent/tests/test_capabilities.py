@@ -19,13 +19,13 @@ def test_research_capability_is_ungated() -> None:
 
 def test_ads_capability_gated_off_by_default() -> None:
     cfg = Config(ads_live_enabled=False, seller_approved=False)
-    cap = REGISTRY.get("ads.place_order")
+    cap = REGISTRY.get("ads.launch_campaign")
     assert cap.is_enabled(cfg) is False
     assert cap.disabled_reason  # must explain why
 
 
 def test_ads_capability_requires_both_flags() -> None:
-    cap = REGISTRY.get("ads.place_order")
+    cap = REGISTRY.get("ads.launch_campaign")
     assert cap.is_enabled(Config(ads_live_enabled=True, seller_approved=False)) is False
     assert cap.is_enabled(Config(ads_live_enabled=False, seller_approved=True)) is False
     assert cap.is_enabled(Config(ads_live_enabled=True, seller_approved=True)) is True
@@ -35,4 +35,4 @@ def test_enabled_filter() -> None:
     cfg = Config()
     enabled_names = {c.name for c in REGISTRY.enabled(cfg)}
     assert "competitors.discover" in enabled_names
-    assert "ads.place_order" not in enabled_names
+    assert "ads.launch_campaign" not in enabled_names
