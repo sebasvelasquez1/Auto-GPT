@@ -294,6 +294,21 @@ def ads_loop(
                "(they raise spend — your call).")
 
 
+@app.command("compliance")
+def compliance_check(text: str = typer.Argument(..., help="Ad creative text to scan")) -> None:
+    """Scan ad creative for TikTok-prohibited claims (advisory)."""
+    from .compliance import review_creative
+    from .config import load_config
+
+    rep = review_creative(text, requires_ai_disclosure=load_config().require_ai_disclosure)
+    if rep["ok"]:
+        typer.echo("✅ No prohibited-claim patterns found.")
+    for v in rep["violations"]:
+        typer.echo(f"⚠️  [{v['severity']}] {v['category']}: '{v['matched']}' — {v['note']}")
+    if rep["needs_ai_disclosure"]:
+        typer.echo("⚠️  Missing AI-UGC disclosure.")
+
+
 @db_app.command("init")
 def db_init() -> None:
     """Create all tables (dev/test convenience; Alembic owns prod migrations)."""

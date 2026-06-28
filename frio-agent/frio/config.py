@@ -47,6 +47,16 @@ class Config(BaseSettings):
     opt_scale_mer_min: float = 2.0            # MER at/above -> scale candidate
     opt_scale_min_purchases: int = 3          # need real conversions before scaling
     opt_scale_budget_step_pct: float = 0.20   # +20% per scale step
+    # Statistical rigor (fewer false kills; Thompson budget allocation)
+    opt_use_statistical_ctr: bool = True      # kill on CTR only if confidently below floor
+    opt_ctr_confidence_z: float = 1.96        # 95% (Wilson upper bound)
+    opt_scale_pool_usd: float = 0.0           # if >0, Thompson-allocate this pool to winners
+
+    # --- Compliance (ad-policy claims scan is active; AI-UGC disclosure DEFERRED) ---
+    # NOTE: FTC AI-UGC disclosure is intentionally OFF for now (revisit later — see
+    # NOTES "Deferred"). The prohibited-claims scan stays on.
+    require_ai_disclosure: bool = False
+    ai_disclosure_text: str = "AI-generated • results not guaranteed"
 
     # --- Data ---
     database_url: str = "sqlite:///frio.db"

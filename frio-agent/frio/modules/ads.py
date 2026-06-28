@@ -89,17 +89,32 @@ def scale_campaign(external_id: str, new_daily_budget_usd: float, config: Config
 
 def run_closed_loop(config: Config, *, entity_type: str = "creative",
                     connector=None, database_url: str | None = None) -> dict:
-    """metrics -> proposals -> auto-apply kills, surface scales for approval."""
+    """metrics -> proposals -> auto-apply kills, surface scales for approval.
+
+    When ``opt_scale_pool_usd`` > 0, each surfaced scale candidate also gets a
+    Thompson-sampled suggested budget (explore/exploit across the winners) — still
+    only a suggestion; the human approves the actual increase.
+    """
     from .optimize import propose_all
+    from ..stats import thompson_allocation
 
     connector = connector or TikTokAdsConnector(config)
     database_url = database_url or config.database_url
     init_db(database_url)
     Session = make_session_factory(database_url)
 
-    applied_kills, pending_scales = 0, []
     with Session() as s:
-        for p in propose_all(s, config, entity_type):
+        proposals = propose_all(s, config, entity_type)
+        scales = [p for p in proposals if p.action == "scale"]
+
+        # Thompson-allocate the scale pool across winners (advisory).
+        suggested = {}
+        if config.opt_scale_pool_usd > 0 and scales:
+            arms = [(p.entity_id, p.metrics["purchases"], p.metrics["clicks"]) for p in scales]
+            suggested = thompson_allocation(arms, config.opt_scale_pool_usd, seed=0)
+
+        applied_kills, pending_scales = 0, []
+        for p in proposals:
             if p.action == "kill":
                 # Spend-reducing -> auto-apply (only touches the account if ads are live).
                 if config.ads_live_enabled:
@@ -110,11 +125,13 @@ def run_closed_loop(config: Config, *, entity_type: str = "creative",
             elif p.action == "scale":
                 # Spend-increasing -> never auto-applied; await human approval.
                 pending_scales.append({"entity_id": p.entity_id, "reason": p.reason,
-                                       "budget_change_pct": p.budget_change_pct})
+                                       "budget_change_pct": p.budget_change_pct,
+                                       "suggested_budget_usd": suggested.get(p.entity_id)})
                 s.add(Decision(kind="scale_proposed", actor="engine", target=p.entity_id,
                                rationale=p.reason,
                                payload={"awaiting_approval": True,
-                                        "budget_change_pct": p.budget_change_pct}))
+                                        "budget_change_pct": p.budget_change_pct,
+                                        "suggested_budget_usd": suggested.get(p.entity_id)}))
         s.commit()
     return {"applied_kills": applied_kills, "pending_scales": pending_scales,
             "awaiting_approval": len(pending_scales)}

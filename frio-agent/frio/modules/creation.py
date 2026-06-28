@@ -9,6 +9,7 @@ spend ledger). Preview is ungated and spends nothing.
 from __future__ import annotations
 
 from ..capabilities import capability
+from ..compliance import review_creative
 from ..config import Config, load_config
 from ..connectors.image_ugc import HiggsfieldImageGenerator, ImageGenResult
 from ..connectors.video_gen import PlaceholderVideoGenerator, VideoGenResult
@@ -53,11 +54,14 @@ def build_brief(product: dict, hooks: list[str], llm: LLMClient | None = None) -
 
 def preview(product: dict, hooks: list[str], config: Config,
             llm: LLMClient | None = None) -> dict:
-    """Build the brief + show the would-be cost. Spends nothing (ungated)."""
+    """Build the brief + cost + compliance check. Spends nothing (ungated)."""
     brief = build_brief(product, hooks, llm)
+    # NOTE: AI-UGC disclosure injection deferred (see NOTES). Claims scan stays on.
     gen = PlaceholderVideoGenerator(config)
+    text = f"{brief.get('hook', '')} {brief.get('video_prompt', '')}"
+    compliance = review_creative(text, requires_ai_disclosure=config.require_ai_disclosure)
     return {"brief": brief, "estimated_cost_usd": gen.estimate(),
-            "provider": gen.name, "live": gen.available()}
+            "provider": gen.name, "live": gen.available(), "compliance": compliance}
 
 
 def render_video(brief: dict, config: Config, *, approve: bool,
@@ -137,10 +141,13 @@ def preview_carousel(product: dict, hooks: list[str], config: Config, n_slides: 
                      llm: LLMClient | None = None) -> dict:
     """Build the carousel brief + show the would-be cost (spends nothing)."""
     brief = build_carousel_brief(product, hooks, n_slides, llm)
+    # NOTE: AI-UGC disclosure injection deferred (see NOTES). Claims scan stays on.
     gen = HiggsfieldImageGenerator(config)
+    text = " ".join([brief.get("hook", "")] + [s["caption"] for s in brief["slides"]])
+    compliance = review_creative(text, requires_ai_disclosure=config.require_ai_disclosure)
     return {"brief": brief, "slides": len(brief["slides"]),
             "estimated_cost_usd": round(gen.estimate() * len(brief["slides"]), 4),
-            "provider": gen.name, "live": gen.available()}
+            "provider": gen.name, "live": gen.available(), "compliance": compliance}
 
 
 def render_carousel(brief: dict, config: Config, *, approve: bool,

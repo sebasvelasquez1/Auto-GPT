@@ -21,6 +21,7 @@ from ..config import Config, load_config
 from ..db.base import make_session_factory
 from ..db.models import Decision
 from ..metrics import EntityMetrics, aggregate_all
+from ..stats import thompson_allocation, wilson_upper_bound
 
 
 @dataclass
@@ -44,10 +45,20 @@ def evaluate(m: EntityMetrics, config: Config) -> Proposal:
                         reason=f"${m.spend_usd:.0f} spent with 0 add-to-carts "
                                f"(>= ${config.opt_kill_spend_no_atc_usd:.0f}).", **base)
 
-    if m.impressions >= config.opt_kill_min_impressions and m.ctr < config.opt_kill_ctr_min:
-        return Proposal(action="kill", auto_executable=True, budget_change_pct=-1.0,
-                        reason=f"CTR {m.ctr*100:.2f}% < {config.opt_kill_ctr_min*100:.0f}% "
-                               f"after {m.impressions} impressions (creative problem).", **base)
+    if m.impressions >= config.opt_kill_min_impressions:
+        if config.opt_use_statistical_ctr:
+            # Only kill when we're CONFIDENT the true CTR is below the floor — the
+            # Wilson upper bound stays wide on noisy samples, avoiding false kills.
+            ub = wilson_upper_bound(m.clicks, m.impressions, config.opt_ctr_confidence_z)
+            confident_below = ub < config.opt_kill_ctr_min
+            stat = f" (95% upper bound {ub*100:.2f}%)"
+        else:
+            confident_below = m.ctr < config.opt_kill_ctr_min
+            stat = ""
+        if confident_below:
+            return Proposal(action="kill", auto_executable=True, budget_change_pct=-1.0,
+                            reason=f"CTR {m.ctr*100:.2f}% < {config.opt_kill_ctr_min*100:.0f}%"
+                                   f"{stat} after {m.impressions} impressions.", **base)
 
     if (config.opt_target_cpa_usd > 0 and m.cpa is not None
             and m.cpa > config.opt_kill_cpa_multiple * config.opt_target_cpa_usd):
@@ -81,6 +92,19 @@ def record_proposals(session, proposals: list[Proposal]) -> None:
             payload={"auto_executable": p.auto_executable,
                      "budget_change_pct": p.budget_change_pct, "metrics": p.metrics},
         ))
+
+
+def allocate_scale_budget(session, config: Config, total_budget: float, *,
+                          entity_type: str = "creative", seed: int = 0) -> dict[str, float]:
+    """Thompson-sample a budget pool across the current scale winners.
+
+    Uses each winner's Beta posterior on conversion (purchases/clicks) so proven
+    performers get more, while still exploring promising-but-uncertain ones.
+    """
+    winners = [m for m in aggregate_all(session, entity_type)
+               if evaluate(m, config).action == "scale"]
+    arms = [(m.entity_id, m.purchases, m.clicks) for m in winners]
+    return thompson_allocation(arms, total_budget, seed=seed)
 
 
 def cadence_focus(week: int) -> str:
