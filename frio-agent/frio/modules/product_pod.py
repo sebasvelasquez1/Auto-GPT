@@ -72,6 +72,37 @@ class PODProductOrigin(ProductOrigin):
         return out[:limit]
 
 
+def scale_winner_to_formats(design_id: str, niche: str, config: Config | None = None, *,
+                            top: int = 3, catalog=None, mockups=None) -> list[ProductCandidate]:
+    """Phase 2: take a WINNING design and scale it onto more competitor-top formats.
+
+    Your own proven design × the top recommended blanks (tank/muscle/tee/…). No IP
+    risk (it's your design); just multiply what already works onto more products.
+    """
+    config = config or load_config()
+    catalog = catalog or TikTokShopCatalog(config)
+    mockups = mockups or PrintfulMockupGenerator(config)
+
+    design = next((d for d in catalog.list_designs() if d["design_id"] == design_id), None)
+    if design is None:
+        return []
+
+    out: list[ProductCandidate] = []
+    for b in recommend_blanks(niche, top=top):
+        asset = DesignAsset(prompt=design["title"], uri=design["image_uri"],
+                            provider="existing-catalog")
+        mockup = mockups.render(asset, blank=b["blank"])
+        out.append(ProductCandidate(
+            external_id=design["design_id"], title=f"{design['title']} — {b['blank']}",
+            source="scaled-winner", kind="pod", compliant=True,
+            metadata={"design_id": design["design_id"], "design_uri": design["image_uri"],
+                      "theme": design["theme"], "blank": b["blank"],
+                      "format_score": b["score"], "scaled_from_winner": True,
+                      "mockup_uri": mockup.uri},
+        ))
+    return out
+
+
 class GeneratedDesignOrigin(ProductOrigin):
     """FUTURE parallel workflow — generate NEW designs informed by market themes.
 
@@ -109,3 +140,16 @@ def make_product_origin(config: Config) -> ProductOrigin:
 def discover_pod(niche: str, limit: int = 20, config: Config | None = None) -> list[dict]:
     config = config or load_config()
     return [asdict(p) for p in PODProductOrigin(config).discover(niche, limit=limit)]
+
+
+@capability(
+    "product.pod.scale_winner",
+    "Phase 2: scale a winning design onto more competitor-recommended formats.",
+    parameters={"design_id": {"type": "string", "required": True},
+                "niche": {"type": "string", "required": True}},
+    category="research",
+)
+def scale_winner(design_id: str, niche: str, top: int = 3,
+                 config: Config | None = None) -> list[dict]:
+    config = config or load_config()
+    return [asdict(p) for p in scale_winner_to_formats(design_id, niche, config, top=top)]

@@ -144,6 +144,27 @@ def product_discover(
         typer.echo(f"\nPersisted: {res.persisted}")
 
 
+@product_app.command("scale")
+def product_scale(
+    design_id: str = typer.Option(..., help="Winning design id (from `product discover`)"),
+    niche: str = typer.Option(None, help="Niche (defaults to config)"),
+    top: int = typer.Option(3, help="How many formats to scale onto"),
+) -> None:
+    """Phase 2: scale a winning design onto more competitor-recommended formats."""
+    from .config import load_config
+    from .modules.product_pod import scale_winner_to_formats
+
+    cfg = load_config()
+    cands = scale_winner_to_formats(design_id, niche or cfg.niche, cfg, top=top)
+    if not cands:
+        typer.echo(f"Design '{design_id}' not found in catalog.")
+        raise typer.Exit(1)
+    typer.echo(f"Scaling design '{design_id}' onto {len(cands)} formats:")
+    for c in cands:
+        m = c.metadata
+        typer.echo(f"  • {m['blank']:12s} (fmt score {m['format_score']})  mockup={m['mockup_uri']}")
+
+
 @creation_app.command("preview")
 def creation_preview(
     niche: str = typer.Option(None, help="Niche (defaults to config)"),

@@ -63,12 +63,16 @@ top vs tee) and which themes are working.
 - Margins ~10–30% (narrower) → stricter optimizer thresholds.
 - Inherently policy-compliant (you own the designs).
 
-### Future parallel workflow — AI design generation (DEFERRED, guard-railed)
-`GeneratedDesignOrigin` (stub): generate NEW designs informed by *abstracted market
-themes* — never copying competitor artwork. Turn on only AFTER the existing-catalog
-loop produces real winners to learn from, and only behind: IP guardrail
-(trademark/wordmark + originality review), printability gate (DPI/transparency/safe
-area), and human approval. See `NOTES.md`.
+### POD roadmap
+- **Phase 1 (now):** test the designs you ALREADY own on the competitor-top format.
+- **Phase 2 (built, dormant):** `scale_winner_to_formats()` — take a WINNING design and
+  scale it onto more competitor-recommended formats (tank → muscle tee → tee → …). Your
+  own proven design, so zero IP risk. CLI: `frio product scale --design-id <id>`.
+- **Phase 3 (deferred, guard-railed):** `GeneratedDesignOrigin` (stub) — generate NEW
+  designs informed by *abstracted market themes* (never copying competitor artwork).
+  Enable only after Phase 1–2 yield real winners to seed it, and only behind: IP
+  guardrail (trademark/wordmark + originality review), printability gate (DPI/
+  transparency/safe-area), and human approval. See `NOTES.md`.
 
 ---
 

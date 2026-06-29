@@ -42,6 +42,27 @@ def test_pod_origin_uses_existing_designs_and_top_blank() -> None:
     assert scores == sorted(scores, reverse=True)
 
 
+def test_scale_winner_to_formats() -> None:
+    cfg = Config(pipeline="pod")
+    from frio.modules.product_pod import scale_winner_to_formats
+
+    cands = scale_winner_to_formats("d-369", "spirituality", cfg, top=3)
+    assert len(cands) == 3
+    blanks = [c.metadata["blank"] for c in cands]
+    assert blanks == ["tank top", "muscle tee", "tee"]  # competitor-ranked formats
+    for c in cands:
+        assert c.source == "scaled-winner"
+        assert c.metadata["design_id"] == "d-369"  # same winning design
+        assert c.metadata["scaled_from_winner"] is True
+        assert c.metadata["mockup_uri"]
+
+
+def test_scale_winner_unknown_design_returns_empty() -> None:
+    from frio.modules.product_pod import scale_winner_to_formats
+
+    assert scale_winner_to_formats("nope", "spirituality", Config()) == []
+
+
 def test_generated_origin_is_deferred() -> None:
     with pytest.raises(NotImplementedError):
         GeneratedDesignOrigin().discover("spirituality")
