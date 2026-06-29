@@ -17,6 +17,21 @@ the creator is independently liable. Turn this on before running live ads.
   spirituality/wellbeing niche — disease/cure, weight/body transformation, before/after,
   wellness-cure, guaranteed-outcome/manifestation. Advisory; surfaced in `creation preview`.
 
+## Future parallel workflow: AI design generation (deferred, guard-railed)
+Designs currently come from the seller's OWN TikTok Shop catalog
+(`connectors/tiktok_shop_catalog.py`). A second origin, `GeneratedDesignOrigin`
+(`modules/product_pod.py`, stubbed → NotImplementedError), will generate NEW designs
+to expand the test pool. Build it AFTER the existing-catalog loop yields real winners
+(seed the generator with what actually sells). Hard requirements before enabling:
+- **IP:** brief the model on ABSTRACTED winning themes/formats/aesthetics only —
+  never feed competitor artwork to imitate; trademark/wordmark check on any text
+  (spiritual/manifestation phrases are often trademarked); originality/similarity review.
+- **Printability:** resolution/DPI, transparency, and safe-area gate before listing.
+- **HITL:** human approval before any generated design is published.
+Rationale: more design shots-on-goal raise the hit rate and our test→kill→scale loop
+is built for it — but naive "generate from competitor designs" invites IP takedowns +
+seller-score penalties and unprintable/low-converting "AI slop". Guardrails are mandatory.
+
 ## Seller eligibility — N/A
 User already has an approved TikTok Shop, so the EIN / US-entity / bank verification
 steps don't apply. (Ads Manager still needs a verified Business account + official

@@ -93,3 +93,37 @@ def offline_demand(keyword: str) -> tuple[int, float]:
 
 def offline_keyword_ideas(niche: str) -> list[str]:
     return POD_KEYWORD_IDEAS.get(niche.strip().lower(), [f"{niche} design"])
+
+
+# Designs the seller ALREADY owns (would be pulled live from the TikTok Shop
+# product catalog). `theme` doubles as the demand keyword.
+EXISTING_DESIGNS: list[dict] = [
+    {"design_id": "d-369", "title": "369 Manifestation",
+     "theme": "manifestation journal", "image_uri": "shop://designs/369.png"},
+    {"design_id": "d-moon", "title": "Moon Phases",
+     "theme": "moon phase crystal print", "image_uri": "shop://designs/moon.png"},
+    {"design_id": "d-chakra", "title": "Chakra Align",
+     "theme": "chakra alignment hoodie", "image_uri": "shop://designs/chakra.png"},
+    {"design_id": "d-grounded", "title": "Stay Grounded",
+     "theme": "spiritual gangster mantra", "image_uri": "shop://designs/grounded.png"},
+]
+
+# Product FORMATS (blanks) ranked by competitor best-seller signal for the niche.
+# This is where "analyze Spiritual Gangster -> sell tank tops, not tees" comes from.
+COMPETITOR_FORMAT_DEMAND: dict[str, list[tuple[str, float]]] = {
+    "spirituality": [
+        ("tank top", 0.82),
+        ("muscle tee", 0.74),
+        ("tee", 0.61),
+        ("hoodie", 0.47),
+        ("crop top", 0.39),
+    ],
+}
+
+
+def offline_existing_designs() -> list[dict]:
+    return [dict(d) for d in EXISTING_DESIGNS]
+
+
+def offline_format_demand(niche: str) -> list[tuple[str, float]]:
+    return COMPETITOR_FORMAT_DEMAND.get(niche.strip().lower(), [("tee", 0.6)])

@@ -131,13 +131,15 @@ def product_discover(
     if res.offline:
         typer.echo("⚠ OFFLINE mode (no API keys) — using deterministic fixtures.\n")
     typer.echo(f"Niche: {res.niche} | Pipeline: {res.pipeline}")
-    typer.echo(f"Demand-validated products: {len(res.products)}\n")
+    if res.products:
+        recs = res.products[0]["metadata"].get("recommended_blanks", [])
+        typer.echo(f"Competitor-recommended formats: {', '.join(recs)}")
+    typer.echo(f"Your designs to test: {len(res.products)}\n")
     for p in res.products:
-        d = p["metadata"]["demand"]
-        typer.echo(f"  [{d['score']:.2f}] {p['title']}  "
-                   f"(vol={d['search_volume']}, comp={d['competition']})")
-        typer.echo(f"          design={p['metadata']['design_uri']}")
-        typer.echo(f"          mockup={p['metadata']['mockup_uri']}")
+        m, d = p["metadata"], p["metadata"]["demand"]
+        typer.echo(f"  [{d['score']:.2f}] {p['title']}  →  on a {m['blank']}  "
+                   f"(theme '{m['theme']}', vol={d['search_volume']})")
+        typer.echo(f"          design={m['design_uri']}  mockup={m['mockup_uri']}")
     if res.persisted:
         typer.echo(f"\nPersisted: {res.persisted}")
 

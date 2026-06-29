@@ -38,17 +38,19 @@ ad/sales metrics back into optimize, which proposes kills (auto) and scale-ups
 
 ## Pipeline A — Print-on-Demand (POD)
 
-You **create** the product (a design on a blank); a POD provider prints + ships
-per order.
+The product is **the seller's OWN design** (already in their TikTok Shop; Shopify
+later) printed on a blank. Designs are NOT generated and NOT taken from competitors
+— competitor analysis only informs **which format (blank) to print on** (e.g. tank
+top vs tee) and which themes are working.
 
 ```
 ③ strategist ─► ④ POD PRODUCT ORIGIN  (modules/product_pod.py — BUILT)
-                 ┌───────────────┬────────────────┬───────────────────┐
-                 │ demand        │ AI design       │ product mockup     │
-                 │ validate  ──► │ generate    ──► │ (Printful)         │ ─► demand-validated
-                 │ (eRank;       │ (DALL·E/        │ (Nano Banana/      │    design + mockup
-                 │  vol vs comp) │  Ideogram)      │  automated mockups)│
-                 └───────────────┴────────────────┴───────────────────┘
+   + competitor    ┌──────────────────┬───────────────────┬─────────────────────┐
+     format        │ pull YOUR designs │ recommend FORMATS │ pair design × top    │
+     signal   ───► │ (TikTok Shop      │ from competitor   │ blank + mockup,      │ ─► test matrix:
+                   │  catalog)         │ best-sellers      │ rank by theme demand │   your designs ×
+                   │                   │ (tank>muscle>tee) │ (Printful mockup)    │   recommended blank
+                   └──────────────────┴───────────────────┴─────────────────────┘
                                          │
 ⑤ creation ─► ⑥ ads ─► ⑦ optimize  (shared)
                                          │ approved listing
@@ -56,8 +58,17 @@ per order.
                     publish_product → listing ; auto-fulfill on sale ; sync_sales → metrics
 ```
 
+- Designs come from `connectors/tiktok_shop_catalog.py` (your catalog). Format
+  recommendation = `recommend_blanks()` from competitor best-seller signal.
 - Margins ~10–30% (narrower) → stricter optimizer thresholds.
-- Inherently policy-compliant (you make the product).
+- Inherently policy-compliant (you own the designs).
+
+### Future parallel workflow — AI design generation (DEFERRED, guard-railed)
+`GeneratedDesignOrigin` (stub): generate NEW designs informed by *abstracted market
+themes* — never copying competitor artwork. Turn on only AFTER the existing-catalog
+loop produces real winners to learn from, and only behind: IP guardrail
+(trademark/wordmark + originality review), printability gate (DPI/transparency/safe
+area), and human approval. See `NOTES.md`.
 
 ---
 
@@ -93,8 +104,8 @@ You **source** an existing winning product; an approved supplier ships it.
 
 | Stage | POD (A) | Dropshipping (B) |
 |---|---|---|
-| **Product origin** | Design it: demand-validate → AI design → mockup | Source it: trend/ad-spy → pick winner → supplier SKU |
-| **Demand signal** | Etsy/keyword search demand (eRank) | Is it *already* selling? (Kalodata/ad-spy) |
+| **Product origin** | YOUR designs (TikTok Shop catalog) × competitor-recommended format (blank) | Source it: trend/ad-spy → pick winner → supplier SKU |
+| **Demand signal** | Theme demand (eRank) on your designs + competitor format signal | Is it *already* selling? (Kalodata/ad-spy) |
 | **Fulfillment** | Printful (print on demand) | CJ Dropshipping (auto-buy + ship) |
 | **Compliance** | Inherently compliant | Must use approved supplier (enforced) |
 | **Margins** | ~10–30% | ~15–40% |
@@ -128,7 +139,7 @@ audit log.
 | ① discovery | `modules/competitors.py` · `connectors/{similarweb,sparktoro}.py` · `competitors.discover` |
 | ② ad research | `connectors/ad_sources.py` (Creative Center, Meta Ad Library) |
 | ③ strategist | `modules/strategist.py` · `strategist.teardown` / `strategist.plan` |
-| ④ product origin | `modules/product_pod.py` (POD) · `make_product_origin()` · dropship = TODO |
+| ④ product origin | `modules/product_pod.py` (POD: existing catalog + `recommend_blanks`) · `connectors/tiktok_shop_catalog.py` · `GeneratedDesignOrigin` = future · dropship = TODO |
 | ⑤ creation | `modules/creation.py` · `connectors/{video_gen,image_ugc}.py` · `compliance.py` |
 | ⑥ ads | `modules/ads.py` · `connectors/tiktok_ads.py` |
 | ⑦ optimize | `modules/optimize.py` · `metrics.py` · `stats.py` (Wilson, Thompson) |
