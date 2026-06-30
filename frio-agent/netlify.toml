@@ -1,0 +1,6 @@
+# Netlify config for the static Frío dashboard snapshot.
+# In Netlify, set the site's "Base directory" to: frio-agent
+# (publishes frio-agent/site/index.html; no build step — it's a pre-generated snapshot).
+[build]
+  publish = "site"
+  command = ""

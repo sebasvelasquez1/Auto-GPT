@@ -373,6 +373,19 @@ def dashboard_cmd(
     uvicorn.run(create_app(cfg), host=host, port=port, log_level="warning")
 
 
+@app.command("export-site")
+def export_site_cmd(
+    out: str = typer.Option("site", help="Output directory (publish dir for Netlify)"),
+) -> None:
+    """Export a static index.html snapshot of the dashboard (for Netlify/static hosts)."""
+    from .config import load_config
+    from .dashboard_render import export_site
+
+    path = export_site(load_config(), out)
+    typer.echo(f"📸 Wrote static dashboard → {path}")
+    typer.echo("Commit + push it; Netlify (linked to GitHub) publishes it automatically.")
+
+
 @app.command("compliance")
 def compliance_check(text: str = typer.Argument(..., help="Ad creative text to scan")) -> None:
     """Scan ad creative for TikTok-prohibited claims (advisory)."""
