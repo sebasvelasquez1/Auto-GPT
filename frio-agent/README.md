@@ -57,6 +57,25 @@ endpoints that spend money or launch/publish; those stay behind their CLI gates 
 caps. Binds to `127.0.0.1` (local only) and requires `FRIO_DASHBOARD_PASSWORD`.
 Exposing it on the internet (hosting + HTTPS + login) is a deliberate later step.
 
+**How the dashboard connects to the agent — the shared database.** There is no
+extra wiring: the agent (pipeline + modules) WRITES results to the DB (`products`,
+`competitors`, `decisions`, `spend_ledger`, `metrics_daily`), and the dashboard READS
+the same DB via the same SQLAlchemy models. Point both at the same `FRIO_DATABASE_URL`
+and they're connected — the dashboard reflects whatever the agent has done.
+
+```
+   agent (CLI / pipeline / modules)                 dashboard (FastAPI, read-only)
+   research / product / optimize / ads / commerce        frio dashboard
+                 │  writes                                      ▲  reads
+                 ▼                                              │
+            ┌───────────────────── FRIO_DATABASE_URL ─────────────────────┐
+            │  products · competitors · decisions · spend_ledger · metrics │
+            └──────────────────────────────────────────────────────────────┘
+```
+Live verification: run `frio research run` / `frio product discover` /
+`frio optimize run --demo`, then open `frio dashboard` on the same DB — your designs,
+verdicts and audit log appear.
+
 ### Phase 0 — skeleton
 Config + gated capability registry, schema, pipeline interfaces, CLI.
 
