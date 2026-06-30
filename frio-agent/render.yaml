@@ -1,0 +1,24 @@
+# Render.com blueprint — hosted Frío dashboard + shared Postgres.
+# (Paths are relative to the repo root. To use as a Blueprint, copy this file to the
+#  repo root, or follow the manual steps in DEPLOY.md.)
+databases:
+  - name: frio-db
+    plan: free
+
+services:
+  - type: web
+    name: frio-dashboard
+    runtime: docker
+    plan: free
+    dockerfilePath: ./frio-agent/Dockerfile
+    dockerContext: ./frio-agent
+    healthCheckPath: /healthz
+    envVars:
+      - key: FRIO_DATABASE_URL          # shared DB: agent writes, dashboard reads
+        fromDatabase:
+          name: frio-db
+          property: connectionString
+      - key: FRIO_DASHBOARD_USER
+        value: frio
+      - key: FRIO_DASHBOARD_PASSWORD    # set this yourself (secret) — strong password
+        sync: false

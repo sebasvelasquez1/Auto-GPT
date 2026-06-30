@@ -23,6 +23,10 @@ _ENGINES: dict[str, Engine] = {}
 
 
 def make_engine(database_url: str) -> Engine:
+    # Some hosts (e.g. Render) hand out the legacy "postgres://" scheme; SQLAlchemy
+    # 2.0 needs "postgresql://". Normalize so a hosted Postgres URL works as-is.
+    if database_url.startswith("postgres://"):
+        database_url = "postgresql://" + database_url[len("postgres://"):]
     engine = _ENGINES.get(database_url)
     if engine is None:
         if database_url in ("sqlite://", "sqlite:///:memory:"):
