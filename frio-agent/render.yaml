@@ -18,7 +18,9 @@ services:
         fromDatabase:
           name: frio-db
           property: connectionString
-      - key: FRIO_DASHBOARD_USER
-        value: frio
-      - key: FRIO_DASHBOARD_PASSWORD    # set this yourself (secret) — strong password
+      - key: FRIO_DASHBOARD_PASSWORD     # set this yourself (secret) — strong password
         sync: false
+      - key: FRIO_DASHBOARD_SESSION_SECRET  # signs login cookies; Render auto-generates
+        generateValue: true
+      - key: FRIO_DASHBOARD_SECURE_COOKIES  # HTTPS-only cookies (Render provides HTTPS)
+        value: "1"

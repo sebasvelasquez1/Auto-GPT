@@ -70,9 +70,12 @@ class Config(BaseSettings):
     # --- Data ---
     database_url: str = "sqlite:///frio.db"
 
-    # --- Dashboard (local, read-only, password-protected) ---
+    # --- Dashboard (private, login-protected; IntoSpirit) ---
     dashboard_user: str = "frio"
-    dashboard_password: str | None = None  # must be set to start the dashboard
+    dashboard_password: str | None = None       # login password (must be set to start)
+    dashboard_session_secret: str | None = None  # signs session cookies (set in prod)
+    dashboard_secure_cookies: bool = True        # set 0 only for local http testing
+    dashboard_brand: str = "IntoSpirit"
 
     # --- Credentials (optional; absent => related connectors are inert) ---
     anthropic_api_key: str | None = None

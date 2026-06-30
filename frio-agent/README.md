@@ -49,13 +49,24 @@ export FRIO_DASHBOARD_PASSWORD='your-secret'
 frio dashboard                                           # http://127.0.0.1:8787 (local only)
 ```
 
-### Dashboard (local, read-only, password-protected)
-`frio/dashboard.py` is a small FastAPI page that shows the calculations in one place:
-products (your designs × format), the optimizer's kill/scale verdicts, the spend
-ledger, and the decisions audit log. It is **read-only by design** — there are no
-endpoints that spend money or launch/publish; those stay behind their CLI gates +
-caps. Binds to `127.0.0.1` (local only) and requires `FRIO_DASHBOARD_PASSWORD`.
-Exposing it on the internet (hosting + HTTPS + login) is a deliberate later step.
+### Dashboard (private, login-protected) — IntoSpirit
+`frio/dashboard.py` is a FastAPI web app with a **real session login** (signed cookie)
+— confidential by default: every data route requires an authenticated session, and
+unauthenticated visitors only see the login page. It shows the calculations in one
+place: products (your designs × format), the optimizer's kill/scale verdicts, the
+spend ledger, and the decisions audit log. It is **read-only** — no endpoint spends
+money or launches/publishes; those stay behind their CLI gates + caps.
+
+Runs as a real server (Render + Postgres, HTTPS) or locally. Requires
+`FRIO_DASHBOARD_PASSWORD` + `FRIO_DASHBOARD_SESSION_SECRET`. Deploy: see `DEPLOY.md`.
+
+> **Roadmap — client-facing portal.** This is the single-tenant (IntoSpirit) version.
+> The auth layer is structured to grow into **multi-tenant client logins** (each client
+> sees only their own Frío Agent data) — add a users/tenants table + per-tenant data
+> scoping; the render/data layers stay the same.
+
+> The static `export-site` / Netlify path also exists, but it produces a *public*
+> snapshot — not suitable for confidential data. Use the Render login app for IntoSpirit.
 
 **How the dashboard connects to the agent — the shared database.** There is no
 extra wiring: the agent (pipeline + modules) WRITES results to the DB (`products`,

@@ -360,6 +360,11 @@ def dashboard_cmd(
     if not cfg.dashboard_password:
         typer.echo("⛔ Set a password first:  export FRIO_DASHBOARD_PASSWORD='your-secret'")
         raise typer.Exit(1)
+    if not cfg.dashboard_session_secret:
+        typer.echo("ℹ No FRIO_DASHBOARD_SESSION_SECRET set — using an ephemeral one "
+                   "(logins reset on restart). Set it in prod.")
+    if host in ("127.0.0.1", "localhost") and cfg.dashboard_secure_cookies:
+        typer.echo("ℹ Local http: set FRIO_DASHBOARD_SECURE_COOKIES=0 so the login cookie works.")
     try:
         import uvicorn
 
@@ -367,9 +372,7 @@ def dashboard_cmd(
     except ImportError:
         typer.echo("Install the dashboard extra:  pip install -e '.[dashboard]'")
         raise typer.Exit(1)
-    typer.echo(f"🧊 Frío dashboard → http://{host}:{port}  (user: {cfg.dashboard_user})")
-    if host not in ("127.0.0.1", "localhost"):
-        typer.echo("⚠ Binding beyond localhost exposes business data — use HTTPS + a strong password.")
+    typer.echo(f"🧊 Frío · {cfg.dashboard_brand} → http://{host}:{port}  (login required)")
     uvicorn.run(create_app(cfg), host=host, port=port, log_level="warning")
 
 
