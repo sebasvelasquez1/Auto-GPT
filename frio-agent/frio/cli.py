@@ -375,7 +375,7 @@ def dashboard_cmd(
 
 @app.command("export-site")
 def export_site_cmd(
-    out: str = typer.Option("site", help="Output directory (publish dir for Netlify)"),
+    out: str = typer.Option("public", help="Output directory (publish dir for Netlify)"),
 ) -> None:
     """Export a static index.html snapshot of the dashboard (for Netlify/static hosts)."""
     from .config import load_config

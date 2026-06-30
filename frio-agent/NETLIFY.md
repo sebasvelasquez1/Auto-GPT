@@ -5,7 +5,7 @@
 your data. Netlify (already linked to GitHub) publishes it automatically on every push.
 
 ```
-  agent  ──exports──►  frio-agent/site/index.html  ──git push──►  GitHub  ──auto──►  Netlify (live URL)
+  agent  ──exports──►  frio-agent/public/index.html  ──git push──►  GitHub  ──auto──►  Netlify (live URL)
 ```
 
 **How "you connect me to Netlify" actually works:** I don't log into your Netlify. The
@@ -18,7 +18,7 @@ the publishing. Nothing else to connect.
 2. Build settings:
    - **Base directory:** `frio-agent`
    - **Build command:** *(leave empty)*
-   - **Publish directory:** `site`
+   - **Publish directory:** `public`
 3. **Deploy.** Netlify gives you a URL like `https://your-site.netlify.app`.
 
 (There's a `frio-agent/netlify.toml` with these settings already; just confirm them.)
@@ -27,8 +27,8 @@ the publishing. Nothing else to connect.
 Re-generate the snapshot and push — Netlify re-publishes automatically:
 ```bash
 cd frio-agent
-frio export-site --out site
-git add site/index.html && git commit -m "update dashboard" && git push
+frio export-site --out public
+git add public/index.html && git commit -m "update dashboard" && git push
 ```
 
 ## Privacy / password — read this (honest)
