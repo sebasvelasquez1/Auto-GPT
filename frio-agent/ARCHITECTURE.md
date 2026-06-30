@@ -146,7 +146,8 @@ audit log.
 | ④ product origin | `modules/product_pod.py` (POD: existing catalog + `recommend_blanks`) · `connectors/tiktok_shop_catalog.py` · `GeneratedDesignOrigin` = future · dropship = TODO |
 | ⑤ creation | `modules/creation.py` · `connectors/{video_gen,image_ugc}.py` · `compliance.py` |
 | ⑥ ads | `modules/ads.py` · `connectors/tiktok_ads.py` |
-| ⑦ optimize | `modules/optimize.py` · `metrics.py` · `stats.py` (Wilson, Thompson) |
+| ⑦ optimize | `modules/optimize.py` · `metrics.py` · `stats.py` (Wilson, Thompson) — ad-level kill/scale |
+| ⑦b analyzer | `modules/analyzer.py` · `financials.py` — product-level P&L (POAS/net profit) → cancel/watch/continue/scale |
 | ⑧ fulfillment | `connectors/fulfillment.py` (Printful / CJ) · `modules/commerce.py` |
 | cross-cutting | `config.py` · `capabilities.py` · `spend.py` · `db/models.py` · `pipeline.py` |
 ```

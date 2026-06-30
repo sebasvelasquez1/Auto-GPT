@@ -64,6 +64,9 @@ require human sign-off.
 - Phase 5 — Commerce/fulfillment (POD: Printful; Dropship: CJ) — GATED + HITL ✅
 - Phase 6 — Ads + closed loop (TikTok Ads, spend caps + HITL) — GATED ✅
 
-All 7 phases built end-to-end (offline-safe, 60 tests). Remaining work = finishing
+- Commercial/financial analyzer (product viability: true P&L, POAS, net profit →
+  cancel/watch/continue/scale) ✅ — distinct from ad-level optimize.
+
+All 7 phases built end-to-end (offline-safe, 86 tests). Remaining work = finishing
 each connector's LIVE API call (gating/caps/audit already done) + optional Prefect
 scheduling wrapper + the Dropship product-origin (Phase 2A) sibling to POD.

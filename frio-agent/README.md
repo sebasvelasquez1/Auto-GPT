@@ -35,7 +35,8 @@ frio creation preview                                    # Phase 3: UGC video br
 frio creation render --approve                           # Phase 3: render MP4 (gated + spend caps)
 frio creation carousel --slides 4                        # Phase 3: UGC image carousel brief
 frio creation carousel --slides 4 --approve              # Phase 3: render carousel (gated)
-frio optimize run --demo                                 # Phase 4: kill/scale proposals (synthetic data)
+frio optimize run --demo                                 # Phase 4: ad-level kill/scale proposals
+frio analyzer product --price 30 --cost 9 --fulfillment 5 --units 40 --ad-spend 120  # product P&L + verdict
 frio commerce publish --approve                          # Phase 5: publish listing (gated: needs seller approval)
 frio ads launch --budget 5 --approve                     # Phase 6: launch campaign (gated + spend caps)
 frio ads loop --demo                                     # Phase 6: closed loop (auto-kill, surface scales)
@@ -92,6 +93,16 @@ executable); scale-ups are spend-increasing (require human approval).** Threshol
 (`FRIO_OPT_*`) live in config, not code. Applying proposals to a live ad account
 is Phase 6 — here it measures + proposes. `frio optimize run --demo` shows it on
 synthetic data (2 kills, 1 scale-needs-approval, 1 hold).
+
+### Commercial / financial analyzer (product viability)
+`financials.py` + `modules/analyzer.py` compute a product's TRUE unit economics —
+revenue, COGS, fulfillment, platform fees (TikTok Shop apparel ≈ 8%), returns AND ad
+spend → contribution per unit, **net profit, POAS, break-even ROAS** — and emit a
+business-level verdict: **cancel / watch / continue / scale**. This is distinct from
+the ad-level kill in `optimize.py`: optimize cuts bad *creatives*; the analyzer
+decides whether the *product itself* is worth selling (e.g. cancel if you lose money
+on every unit, or if it's a net loss after a fair test). Deterministic; no LLM in the
+money math. CLI: `frio analyzer product …`; capability `analyzer.product_viability`.
 
 ### Phase 5 — Commerce / fulfillment (this build, GATED)
 `modules/commerce.py` publishes listings and creates orders through the shared

@@ -23,6 +23,7 @@ strategist_app = typer.Typer(help="Creative strategist (Phase 1b)")
 product_app = typer.Typer(help="Product origin (Phase 2)")
 creation_app = typer.Typer(help="AI-UGC video creation (Phase 3)")
 optimize_app = typer.Typer(help="Optimize engine: kill/scale rules (Phase 4)")
+analyzer_app = typer.Typer(help="Commercial/financial analyzer: product viability")
 commerce_app = typer.Typer(help="Commerce / fulfillment (Phase 5, gated)")
 ads_app = typer.Typer(help="Live ads + closed loop (Phase 6, most gated)")
 db_app = typer.Typer(help="Database")
@@ -33,6 +34,7 @@ app.add_typer(strategist_app, name="strategist")
 app.add_typer(product_app, name="product")
 app.add_typer(creation_app, name="creation")
 app.add_typer(optimize_app, name="optimize")
+app.add_typer(analyzer_app, name="analyzer")
 app.add_typer(commerce_app, name="commerce")
 app.add_typer(ads_app, name="ads")
 app.add_typer(db_app, name="db")
@@ -262,6 +264,35 @@ def optimize_run(
                f"Scales: {res.scales} (awaiting approval: {res.awaiting_approval})  "
                f"Holds: {res.holds}")
     typer.echo("Kills reduce spend (safe to auto-run); scale-ups raise spend (need sign-off).")
+
+
+@analyzer_app.command("product")
+def analyzer_product(
+    price: float = typer.Option(..., help="Selling price per unit (USD)"),
+    cost: float = typer.Option(..., help="Product cost per unit: base+print (USD)"),
+    units: int = typer.Option(..., help="Units sold in the period"),
+    ad_spend: float = typer.Option(..., help="Ad spend in the period (USD)"),
+    fulfillment: float = typer.Option(0.0, help="Fulfillment cost per unit (USD)"),
+    revenue: float = typer.Option(None, help="Override revenue (else price*units)"),
+) -> None:
+    """Compute a product's true P&L + a continue/scale/cancel verdict."""
+    from .config import load_config
+    from .modules.analyzer import analyze, cost_structure_from
+
+    cfg = load_config()
+    cs = cost_structure_from(cfg, price=price, product_cost=cost, fulfillment_cost=fulfillment)
+    v = analyze(cs, units, ad_spend, cfg, revenue=revenue)
+    p = v.pnl
+    icon = {"cancel": "🛑", "watch": "⏸️", "continue": "✅", "scale": "🚀"}
+    typer.echo(f"{icon.get(v.decision, '')} {v.decision.upper()} — {v.headline}\n")
+    typer.echo(f"  Revenue ${p['revenue']:.2f} | Ad spend ${p['ad_spend']:.2f} | "
+               f"Net profit ${p['net_profit']:.2f} ({p['net_margin']*100:.0f}% margin)")
+    poas = p['poas']
+    typer.echo(f"  Contribution/unit ${p['contribution_per_unit']:.2f} | "
+               f"POAS {poas if poas is None else f'{poas:.2f}x'} | "
+               f"break-even ROAS {p['break_even_roas']}")
+    for r in v.reasons:
+        typer.echo(f"    • {r}")
 
 
 @commerce_app.command("publish")

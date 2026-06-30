@@ -52,6 +52,15 @@ class Config(BaseSettings):
     opt_ctr_confidence_z: float = 1.96        # 95% (Wilson upper bound)
     opt_scale_pool_usd: float = 0.0           # if >0, Thompson-allocate this pool to winners
 
+    # --- Financial / commercial analyzer (product viability) ---
+    fin_platform_fee_pct: float = 0.08   # TikTok Shop apparel referral (incl. US pay proc)
+    fin_payment_fee_pct: float = 0.0
+    fin_default_return_rate: float = 0.0
+    fin_target_poas: float = 1.5         # healthy ad-profitability
+    fin_scale_poas: float = 2.0          # strong enough to scale
+    fin_min_units: int = 10              # min sales before a verdict is trusted
+    fin_test_spend_usd: float = 50.0     # min ad spend for a fair product test
+
     # --- Compliance (ad-policy claims scan is active; AI-UGC disclosure DEFERRED) ---
     # NOTE: FTC AI-UGC disclosure is intentionally OFF for now (revisit later — see
     # NOTES "Deferred"). The prohibited-claims scan stays on.
