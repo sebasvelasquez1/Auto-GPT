@@ -47,7 +47,9 @@ def build_brief(product: dict, hooks: list[str], llm: LLMClient | None = None) -
         f"calm trending audio, soft CTA 'tap to shop'."
     )
     return {
-        "hook": hook, "angle": meta.get("keyword", product["title"]),
+        "hook": hook,
+        # POD products expose the demand "theme"; keep "keyword" as a legacy fallback.
+        "angle": meta.get("theme") or meta.get("keyword") or product["title"],
         "funnel_stage": "cold", "video_prompt": video_prompt, "_engine": "heuristic",
     }
 

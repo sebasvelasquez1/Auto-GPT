@@ -124,7 +124,7 @@ def product_discover(
     limit: int = typer.Option(20, help="Max products"),
     persist: bool = typer.Option(True, help="Persist to the database"),
 ) -> None:
-    """Phase 2: demand-validate design ideas, then generate design + mockup."""
+    """Phase 2: pair your existing designs with competitor-recommended formats + mockup."""
     from .pipeline import run_phase2
 
     res = run_phase2(niche=niche, limit=limit, persist=persist)

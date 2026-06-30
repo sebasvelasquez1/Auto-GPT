@@ -73,20 +73,26 @@ class PODProductOrigin(ProductOrigin):
 
 
 def scale_winner_to_formats(design_id: str, niche: str, config: Config | None = None, *,
-                            top: int = 3, catalog=None, mockups=None) -> list[ProductCandidate]:
+                            top: int = 3, catalog=None, demand: DemandProvider | None = None,
+                            mockups=None) -> list[ProductCandidate]:
     """Phase 2: take a WINNING design and scale it onto more competitor-top formats.
 
     Your own proven design × the top recommended blanks (tank/muscle/tee/…). No IP
     risk (it's your design); just multiply what already works onto more products.
     """
+    if top <= 0:
+        raise ValueError(f"top must be >= 1, got {top}")
     config = config or load_config()
     catalog = catalog or TikTokShopCatalog(config)
+    demand = demand or ErankProvider(config)
     mockups = mockups or PrintfulMockupGenerator(config)
 
     design = next((d for d in catalog.list_designs() if d["design_id"] == design_id), None)
     if design is None:
         return []
 
+    # Scaled winners inherit their theme's demand validation (same design).
+    s = demand.validate(design["theme"])
     out: list[ProductCandidate] = []
     for b in recommend_blanks(niche, top=top):
         asset = DesignAsset(prompt=design["title"], uri=design["image_uri"],
@@ -98,7 +104,9 @@ def scale_winner_to_formats(design_id: str, niche: str, config: Config | None = 
             metadata={"design_id": design["design_id"], "design_uri": design["image_uri"],
                       "theme": design["theme"], "blank": b["blank"],
                       "format_score": b["score"], "scaled_from_winner": True,
-                      "mockup_uri": mockup.uri},
+                      "mockup_uri": mockup.uri,
+                      "demand": {"search_volume": s.search_volume, "competition": s.competition,
+                                 "score": s.score, "source": s.source}},
         ))
     return out
 

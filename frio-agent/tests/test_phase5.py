@@ -14,8 +14,8 @@ from frio.interfaces import ProductCandidate
 from frio.modules import commerce
 from frio.pipeline import run_phase5_publish
 
-POD_PRODUCT = {"external_id": None, "title": "369 method tee", "source": "ai-design",
-               "kind": "pod", "metadata": {"blank": "tee"}, "compliant": True}
+POD_PRODUCT = {"external_id": "d-369", "title": "369 method tee", "source": "existing-catalog",
+               "kind": "pod", "metadata": {"blank": "tank top"}, "compliant": True}
 
 
 def test_make_fulfillment_selects_backend() -> None:

@@ -25,7 +25,7 @@ class FakeGen:
                               meta={"offline": False})
 
 
-PRODUCT = {"title": "369 method tee", "metadata": {"blank": "tee", "keyword": "369 method tee",
+PRODUCT = {"title": "369 method tee", "metadata": {"blank": "tee", "theme": "369 method tee",
                                                    "mockup_uri": "placeholder://m.png"}}
 HOOKS = ["Stop scrolling. This is your sign."]
 
@@ -34,6 +34,8 @@ def test_preview_spends_nothing() -> None:
     cfg = Config()
     out = creation.preview(PRODUCT, HOOKS, cfg)
     assert out["brief"]["video_prompt"]
+    # angle is taken from the product "theme" (not a stale "keyword" key)
+    assert out["brief"]["angle"] == "369 method tee"
     assert out["estimated_cost_usd"] == 0.50  # informational list price
     assert out["live"] is False
 

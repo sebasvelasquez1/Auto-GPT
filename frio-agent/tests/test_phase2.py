@@ -55,12 +55,23 @@ def test_scale_winner_to_formats() -> None:
         assert c.metadata["design_id"] == "d-369"  # same winning design
         assert c.metadata["scaled_from_winner"] is True
         assert c.metadata["mockup_uri"]
+        # scaled winners inherit the theme's demand (so persist marks them validated)
+        assert c.metadata["demand"]["score"] > 0
 
 
 def test_scale_winner_unknown_design_returns_empty() -> None:
     from frio.modules.product_pod import scale_winner_to_formats
 
     assert scale_winner_to_formats("nope", "spirituality", Config()) == []
+
+
+def test_scale_winner_top_zero_raises() -> None:
+    import pytest
+
+    from frio.modules.product_pod import scale_winner_to_formats
+
+    with pytest.raises(ValueError):
+        scale_winner_to_formats("d-369", "spirituality", Config(), top=0)
 
 
 def test_generated_origin_is_deferred() -> None:

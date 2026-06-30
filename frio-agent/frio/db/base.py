@@ -10,6 +10,7 @@ It also avoids spinning up a fresh connection pool on every DB call.
 from __future__ import annotations
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -18,10 +19,10 @@ class Base(DeclarativeBase):
     pass
 
 
-_ENGINES: dict[str, object] = {}
+_ENGINES: dict[str, Engine] = {}
 
 
-def make_engine(database_url: str):
+def make_engine(database_url: str) -> Engine:
     engine = _ENGINES.get(database_url)
     if engine is None:
         if database_url in ("sqlite://", "sqlite:///:memory:"):

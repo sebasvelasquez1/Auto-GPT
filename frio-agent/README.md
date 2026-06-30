@@ -57,13 +57,15 @@ Config + gated capability registry, schema, pipeline interfaces, CLI.
   (kill rules + 4-week cadence). Falls back to deterministic heuristics with no key.
 
 ### Phase 2 — POD product origin (this build)
-`modules/product_pod.py` implements the `ProductOrigin` interface for POD:
-validate search demand (`connectors/demand.py`, eRank-style) → keep ideas above
-`FRIO_DEMAND_THRESHOLD` → generate a design (`connectors/design_gen.py`) and a
-product mockup (`connectors/mockups.py`, Printful) for each survivor. Ranks by a
-blended demand-vs-competition score so low-competition ideas beat saturated ones.
-The Dropshipping product origin plugs into the same `make_product_origin` factory
-in a later phase.
+`modules/product_pod.py` implements the `ProductOrigin` interface for POD using the
+seller's OWN designs: pull existing designs from the TikTok Shop catalog
+(`connectors/tiktok_shop_catalog.py`) → recommend the format/blank from competitor
+best-sellers (`recommend_blanks`, e.g. tank top > tee) → pair each design with the
+top format + a Printful mockup (`connectors/mockups.py`), ranked by theme demand
+(`connectors/demand.py`, eRank-style). `scale_winner_to_formats` (Phase 2 roadmap)
+multiplies a winning design onto more formats. AI design generation is deferred
+(`GeneratedDesignOrigin`, Phase 3 — see `NOTES.md`). The Dropshipping product origin
+plugs into the same `make_product_origin` factory in a later phase.
 
 ### Phase 3 — AI-UGC creation: video + image carousels (this build)
 `modules/creation.py` turns a demand-validated product + a mined hook into:

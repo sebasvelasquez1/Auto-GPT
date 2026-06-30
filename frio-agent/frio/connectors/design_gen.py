@@ -1,8 +1,12 @@
 """AI design generation — prompt -> design image.
 
+DEFERRED: not used by the primary POD path (which uses the seller's EXISTING
+designs). This belongs to the future `GeneratedDesignOrigin` workflow (Phase 3) —
+see NOTES.md for the IP + printability guardrails required before enabling.
+
 Live: OpenAI Images (DALL·E) / Ideogram / Midjourney via API key. Offline:
-returns a deterministic placeholder asset so the pipeline runs. Real image
-generation has per-image cost — route through the spend ledger when wired.
+returns a deterministic placeholder asset. Real image generation has per-image
+cost — route through the spend ledger when wired.
 """
 
 from __future__ import annotations
