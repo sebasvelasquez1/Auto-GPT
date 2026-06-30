@@ -42,7 +42,20 @@ frio ads launch --budget 5 --approve                     # Phase 6: launch campa
 frio ads loop --demo                                     # Phase 6: closed loop (auto-kill, surface scales)
 frio db init                                             # create tables (dev/test)
 pip install -e '.[dev]' && pytest                        # tests
+
+# Local dashboard (read-only, password-protected):
+pip install -e '.[dashboard]'
+export FRIO_DASHBOARD_PASSWORD='your-secret'
+frio dashboard                                           # http://127.0.0.1:8787 (local only)
 ```
+
+### Dashboard (local, read-only, password-protected)
+`frio/dashboard.py` is a small FastAPI page that shows the calculations in one place:
+products (your designs × format), the optimizer's kill/scale verdicts, the spend
+ledger, and the decisions audit log. It is **read-only by design** — there are no
+endpoints that spend money or launch/publish; those stay behind their CLI gates +
+caps. Binds to `127.0.0.1` (local only) and requires `FRIO_DASHBOARD_PASSWORD`.
+Exposing it on the internet (hosting + HTTPS + login) is a deliberate later step.
 
 ### Phase 0 — skeleton
 Config + gated capability registry, schema, pipeline interfaces, CLI.

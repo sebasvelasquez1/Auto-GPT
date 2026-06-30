@@ -348,6 +348,31 @@ def ads_loop(
                "(they raise spend — your call).")
 
 
+@app.command("dashboard")
+def dashboard_cmd(
+    host: str = typer.Option("127.0.0.1", help="Bind address (default: local only)"),
+    port: int = typer.Option(8787, help="Port"),
+) -> None:
+    """Launch the local, read-only, password-protected dashboard."""
+    from .config import load_config
+
+    cfg = load_config()
+    if not cfg.dashboard_password:
+        typer.echo("⛔ Set a password first:  export FRIO_DASHBOARD_PASSWORD='your-secret'")
+        raise typer.Exit(1)
+    try:
+        import uvicorn
+
+        from .dashboard import create_app
+    except ImportError:
+        typer.echo("Install the dashboard extra:  pip install -e '.[dashboard]'")
+        raise typer.Exit(1)
+    typer.echo(f"🧊 Frío dashboard → http://{host}:{port}  (user: {cfg.dashboard_user})")
+    if host not in ("127.0.0.1", "localhost"):
+        typer.echo("⚠ Binding beyond localhost exposes business data — use HTTPS + a strong password.")
+    uvicorn.run(create_app(cfg), host=host, port=port, log_level="warning")
+
+
 @app.command("compliance")
 def compliance_check(text: str = typer.Argument(..., help="Ad creative text to scan")) -> None:
     """Scan ad creative for TikTok-prohibited claims (advisory)."""

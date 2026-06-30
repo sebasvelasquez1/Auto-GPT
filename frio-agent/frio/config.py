@@ -70,6 +70,10 @@ class Config(BaseSettings):
     # --- Data ---
     database_url: str = "sqlite:///frio.db"
 
+    # --- Dashboard (local, read-only, password-protected) ---
+    dashboard_user: str = "frio"
+    dashboard_password: str | None = None  # must be set to start the dashboard
+
     # --- Credentials (optional; absent => related connectors are inert) ---
     anthropic_api_key: str | None = None
     similarweb_api_key: str | None = None

@@ -15,7 +15,8 @@ dependencies = [
 orchestration = ["prefect>=2"]
 llm = ["anthropic>=0.30"]
 http = ["httpx>=0.27", "tenacity>=8"]
-dev = ["pytest>=7"]
+dashboard = ["fastapi>=0.110", "uvicorn>=0.27"]
+dev = ["pytest>=7", "httpx>=0.27"]
 
 [project.scripts]
 frio = "frio.cli:app"
