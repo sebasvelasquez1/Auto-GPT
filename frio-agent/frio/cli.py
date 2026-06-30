@@ -266,6 +266,31 @@ def optimize_run(
     typer.echo("Kills reduce spend (safe to auto-run); scale-ups raise spend (need sign-off).")
 
 
+@product_app.command("set-price")
+def product_set_price(
+    title: str = typer.Option(..., help="Product title (as shown by `product discover`)"),
+    price: float = typer.Option(..., help="Selling price per unit (USD)"),
+    cost: float = typer.Option(..., help="Product cost per unit: base+print (USD)"),
+    fulfillment: float = typer.Option(0.0, help="Fulfillment cost per unit (USD)"),
+) -> None:
+    """Set a product's unit economics so the dashboard can auto-compute its verdict."""
+    from .config import load_config
+    from .db.base import init_db, make_session_factory
+    from .db.models import Product
+
+    cfg = load_config()
+    init_db(cfg.database_url)
+    Session = make_session_factory(cfg.database_url)
+    with Session() as s:
+        p = s.query(Product).filter_by(title=title).first()
+        if p is None:
+            typer.echo(f"No product titled '{title}'. Run `product discover` first.")
+            raise typer.Exit(1)
+        p.price, p.unit_cost, p.fulfillment_unit_cost = price, cost, fulfillment
+        s.commit()
+    typer.echo(f"✓ {title}: price=${price} cost=${cost} fulfillment=${fulfillment}")
+
+
 @analyzer_app.command("product")
 def analyzer_product(
     price: float = typer.Option(..., help="Selling price per unit (USD)"),
@@ -293,6 +318,25 @@ def analyzer_product(
                f"break-even ROAS {p['break_even_roas']}")
     for r in v.reasons:
         typer.echo(f"    • {r}")
+
+
+@analyzer_app.command("summary")
+def analyzer_summary() -> None:
+    """The headline answer for every priced product: sirve o no sirve?"""
+    from .config import load_config
+    from .modules.analyzer import all_product_verdicts
+
+    verdicts = all_product_verdicts(load_config())
+    if not verdicts:
+        typer.echo("No priced products yet. Run `frio product set-price` "
+                   "(or `frio demo-seed` for a working example).")
+        return
+    icon = {"cancel": "🛑", "watch": "⏸️", "continue": "✅", "scale": "🚀"}
+    for r in verdicts:
+        v = r.viability
+        typer.echo(f"{icon.get(v.decision, '')} {v.decision.upper():9s} {r.title} "
+                   f"({r.blank})  net=${v.pnl['net_profit']:.2f}  "
+                   f"POAS={v.pnl['poas']}  — {v.headline}")
 
 
 @commerce_app.command("publish")
@@ -374,6 +418,47 @@ def dashboard_cmd(
         raise typer.Exit(1)
     typer.echo(f"🧊 Frío · {cfg.dashboard_brand} → http://{host}:{port}  (login required)")
     uvicorn.run(create_app(cfg), host=host, port=port, log_level="warning")
+
+
+@app.command("demo-seed")
+def demo_seed() -> None:
+    """Seed a complete, realistic example end-to-end so the dashboard has real
+    verdicts to show today: research -> products -> pricing -> sales -> verdicts."""
+    from .config import load_config
+    from .db.base import init_db, make_session_factory
+    from .db.models import Product
+    from .modules import commerce
+    from .pipeline import run_phase1, run_phase2
+
+    cfg = load_config()
+    init_db(cfg.database_url)
+    run_phase1(seed=cfg.seed_brands, config=cfg)
+    run_phase2(niche=cfg.niche, config=cfg)
+
+    seller_cfg = cfg.model_copy(update={"seller_approved": True})
+    Session = make_session_factory(cfg.database_url)
+    with Session() as s:
+        products = s.query(Product).order_by(Product.id).all()
+        # Make the first design a clear WINNER, the second a clear CANCEL, so the
+        # dashboard immediately demonstrates both ends of the verdict.
+        pricing = [
+            (30.0, 9.0, 5.0, {"purchases": 40, "revenue_usd": 1200.0}, 120.0),  # -> scale
+            (12.0, 9.0, 5.0, {"purchases": 15, "revenue_usd": 180.0}, 300.0),   # -> cancel
+        ]
+        for p, (price, cost, ful, orders, ad_spend) in zip(products, pricing):
+            p.price, p.unit_cost, p.fulfillment_unit_cost = price, cost, ful
+            meta = dict(p.metadata_ or {})
+            meta.setdefault("listing_id", meta.get("listing_id") or str(p.id))
+            p.metadata_ = meta
+            s.add(p)
+        s.commit()
+        for p, (price, cost, ful, orders, ad_spend) in zip(products, pricing):
+            listing_id = (p.metadata_ or {}).get("listing_id") or str(p.id)
+            commerce.sync_sales(listing_id, seller_cfg, orders=[orders],
+                               ad_spend=ad_spend, database_url=cfg.database_url)
+
+    typer.echo("✓ Demo seeded: research, products, pricing, sales & ad spend.")
+    typer.echo("  Run `frio dashboard` (or `frio analyzer summary`) to see the verdicts.")
 
 
 @app.command("export-site")

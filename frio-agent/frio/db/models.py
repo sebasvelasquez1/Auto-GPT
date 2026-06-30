@@ -71,6 +71,11 @@ class Product(Base):
     external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     demand_validated: Mapped[bool] = mapped_column(Boolean, default=False)
     compliant: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Unit economics (set once the product is priced/listed) — lets the dashboard
+    # auto-compute the business verdict (sirve / no sirve) from real sales.
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    unit_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fulfillment_unit_cost: Mapped[float] = mapped_column(Float, default=0.0)
     metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 

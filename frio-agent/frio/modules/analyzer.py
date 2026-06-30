@@ -20,6 +20,7 @@ from dataclasses import asdict, dataclass
 from ..capabilities import capability
 from ..config import Config, load_config
 from ..db.base import make_session_factory
+from ..db.models import Product
 from ..financials import CostStructure, ProductPnL, compute_pnl
 from ..metrics import aggregate_all
 
@@ -91,10 +92,15 @@ def cost_structure_from(config: Config, *, price: float, product_cost: float,
         return_rate=config.fin_default_return_rate if return_rate is None else return_rate)
 
 
-def analyze_listing_from_db(listing_id: str, cs: CostStructure, ad_spend: float,
+def analyze_listing_from_db(listing_id: str, cs: CostStructure, ad_spend: float | None = None,
                             config: Config | None = None,
                             database_url: str | None = None) -> Viability:
-    """Pull a product's real sales (metrics_daily, entity_type='product') + assess."""
+    """Pull a product's real sales (+ ad spend) from metrics_daily and assess.
+
+    If ``ad_spend`` is not given, it's taken from the synced metrics themselves
+    (metrics_daily.spend_usd for this product) — fully automatic once sales+spend
+    are synced via commerce.sync_sales(..., ad_spend=...).
+    """
     config = config or load_config()
     Session = make_session_factory(database_url or config.database_url)
     with Session() as s:
@@ -102,7 +108,47 @@ def analyze_listing_from_db(listing_id: str, cs: CostStructure, ad_spend: float,
                 if m.entity_id == listing_id]
     units = rows[0].purchases if rows else 0
     revenue = rows[0].revenue_usd if rows else 0.0
-    return analyze(cs, units, ad_spend, config, revenue=revenue)
+    spend = ad_spend if ad_spend is not None else (rows[0].spend_usd if rows else 0.0)
+    return analyze(cs, units, spend, config, revenue=revenue)
+
+
+@dataclass
+class ProductVerdict:
+    product_id: int
+    title: str
+    kind: str
+    blank: str | None
+    viability: Viability
+
+
+def all_product_verdicts(config: Config | None = None,
+                         database_url: str | None = None) -> list[ProductVerdict]:
+    """The headline dashboard answer: for every PRICED product, sirve o no sirve?
+
+    Only products with price + unit_cost set are assessed (those are the ones the
+    business has actually decided to test/sell); others are still being prepped.
+    """
+    config = config or load_config()
+    database_url = database_url or config.database_url
+    Session = make_session_factory(database_url)
+    out: list[ProductVerdict] = []
+    with Session() as s:
+        products = (s.query(Product)
+                   .filter(Product.price.isnot(None), Product.unit_cost.isnot(None))
+                   .all())
+        for p in products:
+            cs = cost_structure_from(config, price=p.price, product_cost=p.unit_cost,
+                                     fulfillment_cost=p.fulfillment_unit_cost)
+            listing_id = (p.metadata_ or {}).get("listing_id") or str(p.id)
+            v = analyze_listing_from_db(listing_id, cs, config=config,
+                                        database_url=database_url)
+            out.append(ProductVerdict(product_id=p.id, title=p.title, kind=p.kind,
+                                      blank=(p.metadata_ or {}).get("blank"),
+                                      viability=v))
+    # Worst-first: the products needing a decision (cancel) surface at the top.
+    order = {"cancel": 0, "watch": 1, "continue": 2, "scale": 3}
+    out.sort(key=lambda r: order.get(r.viability.decision, 9))
+    return out
 
 
 @capability(

@@ -35,6 +35,7 @@ _CSS = """
 body{font-family:system-ui,Arial,sans-serif;margin:0;background:#0f1115;color:#e6e6e6}
 header{background:#161a22;padding:16px 24px;border-bottom:1px solid #262b36}
 h1{font-size:18px;margin:0}h2{font-size:15px;color:#9aa4b2;margin:28px 24px 8px}
+h2.headline{color:#e6e6e6;font-size:19px;margin:24px 24px 12px}
 .cards{display:flex;gap:12px;flex-wrap:wrap;padding:16px 24px}
 .card{background:#161a22;border:1px solid #262b36;border-radius:10px;padding:14px 18px;min-width:120px}
 .num{font-size:22px;font-weight:700}.lbl{font-size:12px;color:#9aa4b2;margin-top:2px}
@@ -42,6 +43,21 @@ table{width:calc(100% - 48px);margin:0 24px;border-collapse:collapse;font-size:1
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #20242e}
 th{color:#9aa4b2;font-weight:600}.muted{color:#6b7280;margin:0 24px}
 footer{color:#6b7280;font-size:12px;padding:24px}
+.verdicts{display:flex;flex-direction:column;gap:10px;padding:0 24px 8px}
+.vcard{display:flex;align-items:center;gap:16px;border-radius:12px;padding:16px 20px;
+border:1px solid #262b36}
+.vcard.cancel{background:#2a1418;border-color:#5c2530}
+.vcard.watch{background:#1c1f26;border-color:#2a2f3a}
+.vcard.continue{background:#142a1a;border-color:#235c34}
+.vcard.scale{background:#0f2b3a;border-color:#1f6f93}
+.vbadge{font-size:13px;font-weight:700;padding:6px 12px;border-radius:8px;white-space:nowrap}
+.vcard.cancel .vbadge{background:#5c2530;color:#ff9aa8}
+.vcard.watch .vbadge{background:#2a2f3a;color:#9aa4b2}
+.vcard.continue .vbadge{background:#235c34;color:#9af2b4}
+.vcard.scale .vbadge{background:#1f6f93;color:#9adcff}
+.vtitle{font-weight:700;font-size:15px}.vsub{color:#9aa4b2;font-size:12px;margin-top:2px}
+.vnums{margin-left:auto;text-align:right;font-size:13px;color:#cfd4dc}
+.vnums b{font-size:15px;color:#fff}
 """
 
 
@@ -54,9 +70,39 @@ def _page(body: str) -> str:
             f"y tu aprobación — no se ejecutan desde aquí.</footer></body></html>")
 
 
+_VERDICT_LABEL = {"cancel": "🛑 NO SIRVE — cancelar", "watch": "⏸️ EN PRUEBA",
+                  "continue": "✅ SIRVE — continuar", "scale": "🚀 SIRVE — escalar"}
+
+
+def _verdict_cards(config: Config) -> str:
+    from .modules.analyzer import all_product_verdicts
+
+    rows = all_product_verdicts(config)
+    if not rows:
+        return ("<p class=muted>Sin veredictos todavía — pon precio/costo a un producto "
+               "con <code>frio product set-price</code> (o corre <code>frio demo-seed</code> "
+               "para ver un ejemplo funcionando).</p>")
+    cards = []
+    for r in rows:
+        v, p = r.viability, r.viability.pnl
+        poas_txt = f"{p['poas']:.2f}x" if p["poas"] is not None else "—"
+        cards.append(
+            f"<div class='vcard {v.decision}'>"
+            f"<div class=vbadge>{_VERDICT_LABEL.get(v.decision, v.decision)}</div>"
+            f"<div><div class=vtitle>{_esc(r.title)} — {_esc(r.blank or r.kind)}</div>"
+            f"<div class=vsub>{_esc(v.headline)}</div></div>"
+            f"<div class=vnums><b>${p['net_profit']:.2f}</b> ganancia neta<br>"
+            f"POAS {poas_txt} · {p['units']} ventas · ${p['ad_spend']:.0f} en ads</div></div>")
+    return "<div class=verdicts>" + "".join(cards) + "</div>"
+
+
 def render_html(config: Config) -> str:
     """Build the full dashboard page from the current database."""
     from .modules.optimize import propose_all
+
+    verdicts_section = (
+        "<h2 class=headline>📊 Resultados — ¿Sirve o no sirve cada diseño?</h2>"
+        + _verdict_cards(config))
 
     Session = make_session_factory(config.database_url)
     with Session() as s:
@@ -83,13 +129,14 @@ def render_html(config: Config) -> str:
                  for x in s.query(SpendLedger).order_by(SpendLedger.id.desc()).limit(20).all()]
 
     body = (
-        "<div class=cards>"
+        verdicts_section
+        + "<div class=cards>"
         + _card("Productos", n_products) + _card("Competidores", n_competitors)
         + _card("Decisiones", n_decisions) + _card("Gasto total", f"${total_spend:.2f}")
         + "</div>"
-        + "<h2>Productos (tus diseños × formato)</h2>"
+        + "<h2>Detalle técnico — productos (tus diseños × formato)</h2>"
         + _table(["Diseño", "Tipo", "Formato", "Demanda", "Validado"], products)
-        + "<h2>Veredictos del optimizador (anuncios)</h2>"
+        + "<h2>Veredictos del optimizador (nivel anuncio)</h2>"
         + _table(["Acción", "Creativo", "Razón"], verdicts)
         + "<h2>Bitácora de decisiones (auditoría)</h2>"
         + _table(["Fecha", "Tipo", "Actor", "Objetivo", "Motivo"], decisions)

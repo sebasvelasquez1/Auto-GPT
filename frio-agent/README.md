@@ -50,20 +50,37 @@ frio dashboard                                           # http://127.0.0.1:8787
 ```
 
 ### Dashboard (private, login-protected) — IntoSpirit
+The **headline of the dashboard is the business answer**: for every priced product,
+*sirve o no sirve* (cancel / watch / continue / scale), backed by its real P&L (net
+profit, POAS, margin) — computed by the financial analyzer, not just raw tables. Below
+that sits the technical detail: products catalog, ad-level optimizer verdicts, the
+spend ledger, and the decisions audit log.
+
+```
+frio demo-seed          # one command: research + products + pricing + sales -> verdicts
+frio analyzer summary   # the same verdicts in the terminal
+frio dashboard          # the same verdicts as the dashboard's headline section
+```
+
+To make it show YOUR real numbers: run the pipeline (`research run`, `product
+discover`), price each product (`frio product set-price --title "..." --price --cost
+--fulfillment`), and sync its real sales + ad spend (`commerce.sync_sales(...,
+ad_spend=...)`, gated to your approved shop) — the verdict updates automatically.
+
 `frio/dashboard.py` is a FastAPI web app with a **real session login** (signed cookie)
 — confidential by default: every data route requires an authenticated session, and
-unauthenticated visitors only see the login page. It shows the calculations in one
-place: products (your designs × format), the optimizer's kill/scale verdicts, the
-spend ledger, and the decisions audit log. It is **read-only** — no endpoint spends
-money or launches/publishes; those stay behind their CLI gates + caps.
+unauthenticated visitors only see the login page. It is **read-only** — no endpoint
+spends money or launches/publishes; those stay behind their CLI gates + caps.
 
 Runs as a real server (Render + Postgres, HTTPS) or locally. Requires
 `FRIO_DASHBOARD_PASSWORD` + `FRIO_DASHBOARD_SESSION_SECRET`. Deploy: see `DEPLOY.md`.
 
-> **Roadmap — client-facing portal.** This is the single-tenant (IntoSpirit) version.
-> The auth layer is structured to grow into **multi-tenant client logins** (each client
-> sees only their own Frío Agent data) — add a users/tenants table + per-tenant data
-> scoping; the render/data layers stay the same.
+> **Roadmap — sellable, multi-tenant SaaS.** POD + dropshipping testing is a huge
+> market; this could eventually be sold by subscription to other sellers. The current
+> build is intentionally the **single-tenant IntoSpirit version first** — prove the
+> pipeline + dashboard deliver real value for one business before generalizing. The
+> auth layer is structured so it can grow into per-client logins (each client sees only
+> their own data) later without reworking the render/data layers.
 
 > The static `export-site` / Netlify path also exists, but it produces a *public*
 > snapshot — not suitable for confidential data. Use the Render login app for IntoSpirit.

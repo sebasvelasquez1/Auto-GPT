@@ -75,11 +75,13 @@ def create_order(listing_id: str, address: dict, config: Config, *, approve: boo
 
 
 def sync_sales(listing_id: str, config: Config, *, orders: list[dict] | None = None,
-               database_url: str | None = None) -> dict:
-    """Pull shop sales for a listing into metrics_daily (feeds the optimize engine).
+               ad_spend: float = 0.0, database_url: str | None = None) -> dict:
+    """Pull shop sales (+ associated ad spend) for a listing into metrics_daily.
 
-    GATED (needs shop access). Offline synthesizes a small order set so the loop
-    can be demonstrated end-to-end.
+    This feeds BOTH the optimize engine and the financial analyzer — the analyzer
+    reads this same row's spend_usd as the product's ad spend automatically. GATED
+    (needs shop access). Offline synthesizes a small order set so the loop can be
+    demonstrated end-to-end.
     """
     if not config.seller_approved:
         raise PermissionError("commerce disabled — set FRIO_SELLER_APPROVED=1.")
@@ -95,14 +97,14 @@ def sync_sales(listing_id: str, config: Config, *, orders: list[dict] | None = N
     Session = make_session_factory(database_url)
     with Session() as s:
         s.add(MetricsDaily(entity_type="product", entity_id=listing_id,
-                           purchases=purchases, revenue_usd=revenue))
+                           purchases=purchases, revenue_usd=revenue, spend_usd=ad_spend))
         s.add(Decision(kind="sync_sales", actor="engine", target=listing_id,
-                       rationale="synced shop sales into metrics",
+                       rationale="synced shop sales + ad spend into metrics",
                        payload={"orders": len(orders), "purchases": purchases,
-                                "revenue_usd": revenue}))
+                                "revenue_usd": revenue, "ad_spend": ad_spend}))
         s.commit()
     return {"listing_id": listing_id, "orders": len(orders), "purchases": purchases,
-            "revenue_usd": revenue}
+            "revenue_usd": revenue, "ad_spend": ad_spend}
 
 
 @capability(
