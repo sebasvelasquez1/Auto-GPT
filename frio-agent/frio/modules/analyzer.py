@@ -11,6 +11,11 @@ Verdicts:
   - WATCH    — not enough sales/spend yet to decide; keep testing.
   - CONTINUE — net-profitable (POAS > 1).
   - SCALE    — strongly profitable (POAS >= scale threshold).
+  - HARVEST  — profitable BUT sales have plateaued/declined for several straight
+               weeks: stop scaling, milk the remaining demand, prep a replacement.
+               (Maturity != decline: a plateaued product that still makes money is
+               harvested, not killed. With short data history the verdict flags
+               "verify it isn't seasonality" before any cancel decision.)
 """
 
 from __future__ import annotations
@@ -33,7 +38,33 @@ class Viability:
     pnl: dict
 
 
-def assess_viability(pnl: ProductPnL, config: Config) -> Viability:
+def lifecycle_stage(weekly_units: list[int], config: Config) -> tuple[str, str]:
+    """Classify a product's sales trajectory from weekly unit counts.
+
+    Returns (stage, note): "insufficient" | "growing" | "steady" | "declining".
+    Declining = units fell (or stayed flat below peak) for >= fin_decline_weeks
+    consecutive completed weeks after the peak week. Seasonality guard: with less
+    history than fin_seasonality_min_weeks, the note asks to verify seasonality
+    (a seasonal dip repeats within the year; real decline persists across cycles).
+    """
+    n = config.fin_decline_weeks
+    if len(weekly_units) < n + 1:
+        return "insufficient", "not enough weekly history yet"
+    streak = 0
+    for prev, cur in zip(weekly_units[:-1], weekly_units[1:]):
+        streak = streak + 1 if cur < prev else 0
+    if streak >= n:
+        note = f"units fell {streak} consecutive weeks (peak {max(weekly_units)} → {weekly_units[-1]})"
+        if len(weekly_units) < config.fin_seasonality_min_weeks:
+            note += " — short history: VERIFY it isn't seasonality before cancelling"
+        return "declining", note
+    if weekly_units[-1] > weekly_units[0]:
+        return "growing", "units still trending up"
+    return "steady", "units roughly flat"
+
+
+def assess_viability(pnl: ProductPnL, config: Config,
+                     weekly_units: list[int] | None = None) -> Viability:
     reasons: list[str] = []
 
     # 1) Structural loss — lose money on every unit regardless of ads. Cancel.
@@ -58,6 +89,18 @@ def assess_viability(pnl: ProductPnL, config: Config) -> Viability:
     # 3) Enough data: decide on real net profit / POAS.
     poas = pnl.poas if pnl.poas is not None else 0.0
     if pnl.net_profit > 0:
+        # Lifecycle check BEFORE scale/continue: a profitable product whose sales
+        # have plateaued/declined for weeks should be HARVESTED, not scaled further.
+        if weekly_units is not None:
+            stage, note = lifecycle_stage(weekly_units, config)
+            if stage == "declining":
+                return Viability(
+                    "harvest",
+                    "Profitable but plateaued — stop scaling, milk it, prep a replacement.",
+                    reasons + [f"Lifecycle: {note}.",
+                               f"Net profit ${pnl.net_profit:.2f} (POAS {poas:.2f}x) — "
+                               f"still worth selling; cut scaling spend, keep the best ad, "
+                               f"and line up the next design."], pnl.snapshot())
         if poas >= config.fin_scale_poas:
             return Viability(
                 "scale", f"Strongly profitable — scale it (POAS {poas:.2f}x).",
@@ -101,15 +144,19 @@ def analyze_listing_from_db(listing_id: str, cs: CostStructure, ad_spend: float 
     (metrics_daily.spend_usd for this product) — fully automatic once sales+spend
     are synced via commerce.sync_sales(..., ad_spend=...).
     """
+    from ..metrics import weekly_units as weekly_units_fn
+
     config = config or load_config()
     Session = make_session_factory(database_url or config.database_url)
     with Session() as s:
         rows = [m for m in aggregate_all(s, entity_type="product")
                 if m.entity_id == listing_id]
+        weekly = weekly_units_fn(s, "product", listing_id)
     units = rows[0].purchases if rows else 0
     revenue = rows[0].revenue_usd if rows else 0.0
     spend = ad_spend if ad_spend is not None else (rows[0].spend_usd if rows else 0.0)
-    return analyze(cs, units, spend, config, revenue=revenue)
+    pnl = compute_pnl(cs, units, spend, revenue=revenue)
+    return assess_viability(pnl, config, weekly_units=weekly)
 
 
 @dataclass
@@ -146,7 +193,7 @@ def all_product_verdicts(config: Config | None = None,
                                       blank=(p.metadata_ or {}).get("blank"),
                                       viability=v))
     # Worst-first: the products needing a decision (cancel) surface at the top.
-    order = {"cancel": 0, "watch": 1, "continue": 2, "scale": 3}
+    order = {"cancel": 0, "harvest": 1, "watch": 2, "continue": 3, "scale": 4}
     out.sort(key=lambda r: order.get(r.viability.decision, 9))
     return out
 

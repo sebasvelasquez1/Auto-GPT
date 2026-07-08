@@ -52,6 +52,20 @@ class Config(BaseSettings):
     opt_ctr_confidence_z: float = 1.96        # 95% (Wilson upper bound)
     opt_scale_pool_usd: float = 0.0           # if >0, Thompson-allocate this pool to winners
 
+    # Ad/creative fatigue (TikTok fatigues ~4x faster than Meta; CTR warns before CPA)
+    opt_fatigue_ctr_drop: float = 0.20        # recent CTR >=20% below baseline -> fatigued
+    opt_fatigue_frequency_max: float = 3.5    # cold-audience frequency ceiling
+    opt_fatigue_recent_days: int = 3          # recent window vs prior baseline
+    opt_fatigue_min_impressions: int = 500    # per window, before judging fatigue
+
+    # Scaling plateau (diminishing returns — judge the MARGINAL return, not the average)
+    opt_plateau_spend_rise: float = 0.20      # spend up >=20% ...
+    opt_plateau_mer_drop: float = 0.15        # ...while MER down >=15% -> stop scaling
+
+    # Product lifecycle (plateau -> harvest, not kill, while still profitable)
+    fin_decline_weeks: int = 3                # consecutive declining weeks -> plateau/decline
+    fin_seasonality_min_weeks: int = 12       # less history than this -> flag "verify seasonality"
+
     # --- Financial / commercial analyzer (product viability) ---
     fin_platform_fee_pct: float = 0.08   # TikTok Shop apparel referral (incl. US pay proc)
     fin_payment_fee_pct: float = 0.0

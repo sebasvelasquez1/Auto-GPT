@@ -254,7 +254,7 @@ def optimize_run(
     if not res.proposals:
         typer.echo("No metrics found. Try `frio optimize run --demo` to see it work.")
         return
-    icon = {"kill": "🔪", "scale": "📈", "hold": "⏸️"}
+    icon = {"kill": "🔪", "scale": "📈", "hold": "⏸️", "refresh": "🔄"}
     for p in res.proposals:
         gate = "" if p["action"] != "scale" else "  [NEEDS APPROVAL]"
         auto = "  [auto]" if p["auto_executable"] else ""
@@ -308,7 +308,7 @@ def analyzer_product(
     cs = cost_structure_from(cfg, price=price, product_cost=cost, fulfillment_cost=fulfillment)
     v = analyze(cs, units, ad_spend, cfg, revenue=revenue)
     p = v.pnl
-    icon = {"cancel": "🛑", "watch": "⏸️", "continue": "✅", "scale": "🚀"}
+    icon = {"cancel": "🛑", "watch": "⏸️", "continue": "✅", "scale": "🚀", "harvest": "🌾"}
     typer.echo(f"{icon.get(v.decision, '')} {v.decision.upper()} — {v.headline}\n")
     typer.echo(f"  Revenue ${p['revenue']:.2f} | Ad spend ${p['ad_spend']:.2f} | "
                f"Net profit ${p['net_profit']:.2f} ({p['net_margin']*100:.0f}% margin)")
@@ -331,7 +331,7 @@ def analyzer_summary() -> None:
         typer.echo("No priced products yet. Run `frio product set-price` "
                    "(or `frio demo-seed` for a working example).")
         return
-    icon = {"cancel": "🛑", "watch": "⏸️", "continue": "✅", "scale": "🚀"}
+    icon = {"cancel": "🛑", "watch": "⏸️", "continue": "✅", "scale": "🚀", "harvest": "🌾"}
     for r in verdicts:
         v = r.viability
         typer.echo(f"{icon.get(v.decision, '')} {v.decision.upper():9s} {r.title} "

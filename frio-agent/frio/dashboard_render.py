@@ -50,11 +50,13 @@ border:1px solid #262b36}
 .vcard.watch{background:#1c1f26;border-color:#2a2f3a}
 .vcard.continue{background:#142a1a;border-color:#235c34}
 .vcard.scale{background:#0f2b3a;border-color:#1f6f93}
+.vcard.harvest{background:#2a2410;border-color:#6f5a1f}
 .vbadge{font-size:13px;font-weight:700;padding:6px 12px;border-radius:8px;white-space:nowrap}
 .vcard.cancel .vbadge{background:#5c2530;color:#ff9aa8}
 .vcard.watch .vbadge{background:#2a2f3a;color:#9aa4b2}
 .vcard.continue .vbadge{background:#235c34;color:#9af2b4}
 .vcard.scale .vbadge{background:#1f6f93;color:#9adcff}
+.vcard.harvest .vbadge{background:#6f5a1f;color:#f2dd9a}
 .vtitle{font-weight:700;font-size:15px}.vsub{color:#9aa4b2;font-size:12px;margin-top:2px}
 .vnums{margin-left:auto;text-align:right;font-size:13px;color:#cfd4dc}
 .vnums b{font-size:15px;color:#fff}
@@ -71,7 +73,8 @@ def _page(body: str) -> str:
 
 
 _VERDICT_LABEL = {"cancel": "🛑 NO SIRVE — cancelar", "watch": "⏸️ EN PRUEBA",
-                  "continue": "✅ SIRVE — continuar", "scale": "🚀 SIRVE — escalar"}
+                  "continue": "✅ SIRVE — continuar", "scale": "🚀 SIRVE — escalar",
+                  "harvest": "🌾 SIRVE — cosechar (no escalar más)"}
 
 
 def _verdict_cards(config: Config) -> str:

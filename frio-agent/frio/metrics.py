@@ -58,6 +58,35 @@ class EntityMetrics:
         }
 
 
+def daily_series(session, entity_type: str, entity_id: str) -> list[dict]:
+    """Ordered daily rows for one entity — feeds fatigue/plateau detection."""
+    rows = session.execute(
+        select(MetricsDaily.day, MetricsDaily.spend_usd, MetricsDaily.impressions,
+               MetricsDaily.clicks, MetricsDaily.add_to_carts, MetricsDaily.purchases,
+               MetricsDaily.revenue_usd, MetricsDaily.frequency)
+        .where(MetricsDaily.entity_type == entity_type,
+               MetricsDaily.entity_id == entity_id)
+        .order_by(MetricsDaily.day)
+    ).all()
+    return [
+        {"day": d, "spend_usd": float(sp or 0), "impressions": int(im or 0),
+         "clicks": int(cl or 0), "add_to_carts": int(atc or 0),
+         "purchases": int(pu or 0), "revenue_usd": float(rev or 0),
+         "frequency": float(fq or 0)}
+        for (d, sp, im, cl, atc, pu, rev, fq) in rows
+    ]
+
+
+def weekly_units(session, entity_type: str, entity_id: str) -> list[int]:
+    """Units sold per ISO week (ordered) — feeds product-lifecycle detection."""
+    series = daily_series(session, entity_type, entity_id)
+    buckets: dict[tuple[int, int], int] = {}
+    for r in series:
+        iso = r["day"].isocalendar()
+        buckets[(iso[0], iso[1])] = buckets.get((iso[0], iso[1]), 0) + r["purchases"]
+    return [buckets[k] for k in sorted(buckets)]
+
+
 def aggregate_all(session, entity_type: str = "creative") -> list[EntityMetrics]:
     """Sum daily rows into one EntityMetrics per entity_id of the given type."""
     rows = session.execute(

@@ -144,6 +144,20 @@ every clip/image passes the per-clip / per-image + daily spend caps enforced
 against the append-only `spend_ledger` (`frio/spend.py`). Previews are ungated and
 spend nothing.
 
+### Fatigue, plateau & harvest (full lifecycle, not just kill/scale)
+The engine now covers the *whole* life of a winner, not just its birth:
+- **REFRESH (creative fatigue)** — `optimize.detect_fatigue`: recent CTR ≥20% below
+  its own baseline, or frequency >3.5 → the ad is wearing out (TikTok fatigues ~4×
+  faster than Meta). Proposal only — replacing creative costs money.
+- **Stop-scaling (plateau)** — `optimize.detect_scaling_plateau`: spend up ≥20% while
+  MER falls ≥15% = diminishing *marginal* returns → SCALE proposals are vetoed into
+  HOLD ("keep the last efficient budget; scale horizontally").
+- **HARVEST (product lifecycle)** — `analyzer.lifecycle_stage`: units falling ≥3
+  straight weeks while still net-profitable → 🌾 harvest verdict (stop scaling, milk
+  remaining demand, prep the replacement). Maturity ≠ decline: profitable plateaus are
+  harvested, never killed. With <12 weeks of history the verdict flags
+  **"verify it isn't seasonality"** before any cancel.
+
 ### Phase 4 — Optimize engine (this build)
 `modules/optimize.py` is the deterministic money brain (no LLM, ever). `metrics.py`
 aggregates `metrics_daily` into CTR/CPA/MER/CPC; `evaluate()` applies config-driven

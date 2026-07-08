@@ -80,8 +80,93 @@ def evaluate(m: EntityMetrics, config: Config) -> Proposal:
                     reason="No kill/scale threshold met (holding / gathering data).", **base)
 
 
+def _window_stats(rows: list[dict]) -> dict:
+    imp = sum(r["impressions"] for r in rows)
+    clicks = sum(r["clicks"] for r in rows)
+    spend = sum(r["spend_usd"] for r in rows)
+    rev = sum(r["revenue_usd"] for r in rows)
+    freqs = [r["frequency"] for r in rows if r["frequency"] > 0]
+    return {"impressions": imp, "ctr": clicks / imp if imp else 0.0, "spend": spend,
+            "mer": rev / spend if spend else 0.0,
+            "frequency": sum(freqs) / len(freqs) if freqs else 0.0}
+
+
+def detect_fatigue(series: list[dict], config: Config) -> str | None:
+    """Creative fatigue: recent CTR well below its own baseline, or frequency too high.
+
+    CTR degrades days before CPA does — this is the early-warning that a WINNING
+    creative is wearing out (TikTok fatigues ~4x faster than Meta). Returns the
+    reason string, or None. Deterministic; needs enough daily history.
+    """
+    n = config.opt_fatigue_recent_days
+    if len(series) < n * 2:  # need a baseline AND a recent window
+        return None
+    baseline, recent = _window_stats(series[:-n]), _window_stats(series[-n:])
+    if (baseline["impressions"] < config.opt_fatigue_min_impressions
+            or recent["impressions"] < config.opt_fatigue_min_impressions):
+        return None
+    if recent["frequency"] > config.opt_fatigue_frequency_max:
+        return (f"Frequency {recent['frequency']:.1f} > "
+                f"{config.opt_fatigue_frequency_max:g} — audience saturated.")
+    if baseline["ctr"] > 0 and recent["ctr"] < baseline["ctr"] * (1 - config.opt_fatigue_ctr_drop):
+        return (f"CTR {recent['ctr']*100:.2f}% is {config.opt_fatigue_ctr_drop*100:.0f}%+ "
+                f"below its own baseline {baseline['ctr']*100:.2f}% — creative wearing out.")
+    return None
+
+
+def detect_scaling_plateau(series: list[dict], config: Config) -> str | None:
+    """Diminishing returns: spend rose but efficiency (MER) fell — stop scaling.
+
+    Judges the MARGINAL return (recent window vs baseline), not the blended
+    average, which masks inefficiency at the margin. Returns reason or None.
+    """
+    if len(series) < 4:
+        return None
+    half = len(series) // 2
+    base, recent = _window_stats(series[:half]), _window_stats(series[half:])
+    if base["spend"] <= 0 or base["mer"] <= 0:
+        return None
+    spend_up = recent["spend"] >= base["spend"] * (1 + config.opt_plateau_spend_rise)
+    mer_down = recent["mer"] <= base["mer"] * (1 - config.opt_plateau_mer_drop)
+    if spend_up and mer_down:
+        return (f"Spend up {((recent['spend']/base['spend'])-1)*100:.0f}% but MER fell "
+                f"{base['mer']:.2f}→{recent['mer']:.2f} — diminishing returns; hold at the "
+                f"last efficient budget and scale horizontally instead.")
+    return None
+
+
 def propose_all(session, config: Config, entity_type: str = "creative") -> list[Proposal]:
-    return [evaluate(m, config) for m in aggregate_all(session, entity_type)]
+    """Evaluate every entity, layering fatigue/plateau signals over the base rules.
+
+    Priority: KILL (safety) > REFRESH (fatigue) > plateau-veto on SCALE > base action.
+    """
+    from ..metrics import daily_series
+
+    out: list[Proposal] = []
+    for m in aggregate_all(session, entity_type):
+        p = evaluate(m, config)
+        if p.action != "kill":  # kills always win — they're the safety rail
+            series = daily_series(session, entity_type, m.entity_id)
+            fatigue = detect_fatigue(series, config)
+            if fatigue:
+                # Rotating creative implies producing a replacement (costs money),
+                # so refresh is a recommendation, never auto-executed.
+                p = Proposal(action="refresh", auto_executable=False,
+                             budget_change_pct=0.0,
+                             reason=f"Creative fatigue: {fatigue} Rotate/replace the "
+                                    f"creative (e.g. swap the hook/first 3s).",
+                             entity_type=m.entity_type, entity_id=m.entity_id,
+                             metrics=m.snapshot())
+            elif p.action == "scale":
+                plateau = detect_scaling_plateau(series, config)
+                if plateau:
+                    p = Proposal(action="hold", auto_executable=False,
+                                 budget_change_pct=0.0,
+                                 reason=f"Stop scaling: {plateau}",
+                                 entity_type=m.entity_type, entity_id=m.entity_id,
+                                 metrics=m.snapshot())
+        out.append(p)
+    return out
 
 
 def record_proposals(session, proposals: list[Proposal]) -> None:

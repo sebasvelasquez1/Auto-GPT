@@ -65,7 +65,15 @@ require human sign-off.
 - Phase 6 — Ads + closed loop (TikTok Ads, spend caps + HITL) — GATED ✅
 
 - Commercial/financial analyzer (product viability: true P&L, POAS, net profit →
-  cancel/watch/continue/scale) ✅ — distinct from ad-level optimize.
+  cancel/watch/continue/scale/**harvest**) ✅ — distinct from ad-level optimize.
+- Fatigue/plateau layer ✅ — creative REFRESH on CTR-vs-own-baseline decay or high
+  frequency; SCALE vetoed to HOLD on diminishing marginal returns (MER drop while
+  spend rises); product plateau → HARVEST with seasonality guard (<12 weeks history).
+- Dashboard = private login web app (IntoSpirit); headline = per-product verdict
+  (sirve/no sirve) with P&L. Deploy-ready for Render (DEPLOY.md). SaaS multi-tenant
+  subscription = explicit ROADMAP, not built (fase inicial: IntoSpirit first).
+- PENDING from user: TikTok Shop developer credentials (promised; ask again after
+  current tasks) → wires the real catalog + sales.
 
 All 7 phases built end-to-end (offline-safe, 86 tests). Remaining work = finishing
 each connector's LIVE API call (gating/caps/audit already done) + optional Prefect
