@@ -2,14 +2,32 @@
 
 In POD, the product is the seller's own design (already in their TikTok Shop;
 Shopify later). This is the real product source — NOT generated, NOT a competitor's.
-Live: TikTok Shop API (`tiktok_shop_api_key`). Offline: fixtures of designs the
-seller "already owns".
+
+REAL API contract (verified from the official TikTok Shop developer guide, not
+guessed):
+  - We are a "Seller (in-house) developer" -> Custom app -> user_type=0, own shop
+    data only.
+  - Host: https://open-api.tiktokglobalshop.com
+  - Every request is SIGNED and carries: query params app_key, sign, timestamp;
+    headers x-tts-access-token + content-type: application/json.
+  - Official SDKs exist for Go / Node.js / Java (NO Python SDK) -> we call the REST
+    API directly (or vendor a community Python client, e.g. Lundehund/tiktok-shop-api).
+
+STILL NEEDED before the live call can be written (honest gaps — not invented):
+  1. The request-signature algorithm doc (the "sign" gen algorithm) — referenced in
+     the guide but not yet in hand; the sign() must NOT be guessed (crypto).
+  2. The exact Products API list endpoint/path + params (Products API overview).
+  3. Real credentials (app_key/app_secret/access_token) after the ~3-week app review.
+
+Offline: fixtures of designs the seller "already owns".
 """
 
 from __future__ import annotations
 
 from ..config import Config
 from .fixtures import offline_existing_designs
+
+API_HOST = "https://open-api.tiktokglobalshop.com"
 
 
 class TikTokShopCatalog:
@@ -19,11 +37,18 @@ class TikTokShopCatalog:
         self._config = config
 
     def available(self) -> bool:
-        return bool(self._config.tiktok_shop_api_key)
+        # A signed live call needs the app credentials AND a per-shop access token.
+        return bool(self._config.tiktok_shop_app_key
+                    and self._config.tiktok_shop_app_secret
+                    and self._config.tiktok_shop_access_token)
 
     def list_designs(self, limit: int = 50) -> list[dict]:
         """Return the seller's existing designs: {design_id, title, theme, image_uri}."""
         if not self.available():
             return [dict(d, offline=True) for d in offline_existing_designs()][:limit]
-        # Live: pull the product catalog (EcomPHP/Lundehund tiktok-shop SDK).
-        raise NotImplementedError("wire TikTok Shop product-catalog pull here")
+        # Live (needs items 1-2 above): GET Products API on API_HOST, signed with
+        # app_key/app_secret/timestamp, header x-tts-access-token; map each product
+        # -> {design_id, title, theme, image_uri}.
+        raise NotImplementedError(
+            "TikTok Shop live catalog pull: signature algorithm + Products endpoint "
+            "still required (see module docstring).")

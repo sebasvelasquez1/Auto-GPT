@@ -106,7 +106,15 @@ class Config(BaseSettings):
     higgsfield_api_key: str | None = None  # video+image: Nano Banana/Soul/Seedance via MCP
     video_provider: str = "veo"  # veo | kling | runway | prizmad | arcads
     image_provider: str = "nano_banana"  # nano_banana | soul | flux | gpt_image
-    tiktok_shop_api_key: str | None = None
+    # TikTok Shop API — custom app, seller in-house (user_type=0). Per the official
+    # developer guide, a signed request needs app_key + app_secret + a per-shop
+    # access_token (from the OAuth auth_code exchange) + a refresh_token, and the
+    # shop_cipher identifies the specific shop. Host: open-api.tiktokglobalshop.com.
+    tiktok_shop_app_key: str | None = None
+    tiktok_shop_app_secret: str | None = None
+    tiktok_shop_access_token: str | None = None
+    tiktok_shop_refresh_token: str | None = None
+    tiktok_shop_cipher: str | None = None
     tiktok_ads_api_key: str | None = None
 
 
