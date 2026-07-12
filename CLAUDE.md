@@ -45,6 +45,16 @@ them on; every spend action checks hard caps + the append-only `spend_ledger`.
 Actions that *reduce* spend (kills) may auto-run; actions that *increase* spend
 require human sign-off.
 
+## Regla de research (obligatoria — ver `frio-agent/knowledge/README.md`)
+
+**No inventar. No presumir. No redondear hacia lo que suena bien.** Toda afirmación
+de mercado/competidor/herramienta debe venir de una fuente citada; si el usuario
+pega texto con cifras, se contrastan con búsqueda independiente y toda discrepancia
+se documenta tal cual (no se elige la cifra que "suena mejor"). Distinguir siempre
+si algo es una herramienta que un humano opera, o un agente que decide y ejecuta
+solo — nunca se asume. El research puntual se marca como no-exhaustivo si no lo fue.
+Hallazgos de mercado van a `frio-agent/knowledge/investigacion/`.
+
 ## Working conventions
 
 - Develop on branch `claude/frio-shopping-agent-oxyduf`; commit + push after each
