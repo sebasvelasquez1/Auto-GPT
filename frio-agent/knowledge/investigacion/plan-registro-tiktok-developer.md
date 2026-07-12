@@ -13,9 +13,15 @@ Somos "Seller Developer" → Custom App → autorización directa 1:1 a TU tiend
 - [ ] Nada más — los datos del negocio ya están ligados a tu tienda.
 
 ## Los pasos (mañana, en orden)
-- [ ] **1.** Entra a **https://partner.us.tiktokshop.com** (tienda de EE.UU.).
+- [ ] **1.** Entra al login oficial del Partner Center Console:
+      **https://partner-sso.tiktok.com/account/login**
+      (confirmado por la doc oficial "About the Partner Center Console").
+      Alternativa si esa no carga bien para EE.UU.: **https://partner.us.tiktokshop.com**.
 - [ ] **2.** Inicia sesión con tu cuenta de TikTok Shop. Elige registrarte como
       **Seller Developer** (developer de vendedor / para tu propia tienda).
+      > Nota: la consola atiende varios "tipos de partner". Si te pide elegir tipo
+      > y NO ves claro "Seller / Seller Developer", sácame un screenshot y te digo
+      > cuál marcar — no adivines.
 - [ ] **3.** Crea una **Custom App** (NO "Public App"). Ponle cualquier nombre,
       ej. "Frio Agent".
 - [ ] **4.** En los permisos (scopes) de la app, activa: **Products** (productos)
