@@ -158,6 +158,20 @@ The engine now covers the *whole* life of a winner, not just its birth:
   harvested, never killed. With <12 weeks of history the verdict flags
   **"verify it isn't seasonality"** before any cancel.
 
+### Phase 3.5 — Predictive pre-score (score creative BEFORE spending on the test)
+`modules/prescore.py`: the gap identified from researched commercial tools
+(AdTest.AI-style) — most workflows go straight from "build a creative" to "spend
+$1-20 to get real signal." This scores several hook variants first, for free.
+**Not a trained ML model** (we have none, and claiming one would break our
+no-invent research rule) — it's either a transparent rule-based checklist
+(on-image text/concise copy, ~10-20s video sweet spot, hook/payoff/CTA structure,
+compliance risk — all grounded in the creative-testing research already gathered),
+or a Claude judgment call when configured (legitimate here since no money is at
+stake yet). `creation.build_brief_variants` generates N hook variants;
+`prescore.rank_variants` scores + ranks them. Always ungated — purely advisory.
+CLI: `frio creation prescore`. An `AdTestAIScorer` connector shape exists for a
+real third-party integration later (not wired — no account).
+
 ### Phase 4 — Optimize engine (this build)
 `modules/optimize.py` is the deterministic money brain (no LLM, ever). `metrics.py`
 aggregates `metrics_daily` into CTR/CPA/MER/CPC; `evaluate()` applies config-driven

@@ -167,6 +167,34 @@ def product_scale(
         typer.echo(f"  • {m['blank']:12s} (fmt score {m['format_score']})  mockup={m['mockup_uri']}")
 
 
+@creation_app.command("prescore")
+def creation_prescore(
+    niche: str = typer.Option(None, help="Niche (defaults to config)"),
+    seed: str = typer.Option(None, help="Seed brand for hooks (defaults to config)"),
+    variants: int = typer.Option(None, help="How many hook variants to generate + score"),
+) -> None:
+    """Phase 3.5: score creative variants BEFORE spending on the paid test (no spend)."""
+    from .pipeline import run_phase3_5_prescore
+
+    res = run_phase3_5_prescore(niche=niche, seed=seed, n_variants=variants)
+    if not res.product:
+        typer.echo(f"No product: {res.gate_message}")
+        raise typer.Exit(1)
+    typer.echo(f"Product: {res.product['title']}\n")
+    for i, r in enumerate(res.ranked, 1):
+        p = r["prescore"]
+        mark = "✅ TEST" if p["recommendation"] == "test" else "✏️  REVISE"
+        typer.echo(f"  #{i}  {p['score']:.0f}/100  {mark}  ({p['engine']})  "
+                   f"hook: {r['brief'].get('hook')!r}")
+        for reason in p["reasons"]:
+            typer.echo(f"        • {reason}")
+    top = res.ranked[0] if res.ranked else None
+    if top and top["prescore"]["recommendation"] == "test":
+        typer.echo(f"\n👉 Recommended for the paid test: {top['brief'].get('hook')!r}")
+    else:
+        typer.echo("\n⚠ No variant cleared the bar — revise before spending on a test.")
+
+
 @creation_app.command("preview")
 def creation_preview(
     niche: str = typer.Option(None, help="Niche (defaults to config)"),

@@ -54,6 +54,17 @@ def build_brief(product: dict, hooks: list[str], llm: LLMClient | None = None) -
     }
 
 
+def build_brief_variants(product: dict, hooks: list[str], n: int = 3,
+                         llm: LLMClient | None = None) -> list[dict]:
+    """Build up to ``n`` candidate video briefs, one per distinct hook.
+
+    Feeds the pre-score ranking step (researched 4-stage flow: generate several
+    variants -> filter -> only spend the test budget on the strongest).
+    """
+    chosen = hooks[:n] if hooks else [None]
+    return [build_brief(product, [h] if h else [], llm) for h in chosen]
+
+
 def preview(product: dict, hooks: list[str], config: Config,
             llm: LLMClient | None = None) -> dict:
     """Build the brief + cost + compliance check. Spends nothing (ungated)."""

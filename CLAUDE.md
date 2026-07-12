@@ -79,6 +79,9 @@ Hallazgos de mercado van a `frio-agent/knowledge/investigacion/`.
 - Fatigue/plateau layer ✅ — creative REFRESH on CTR-vs-own-baseline decay or high
   frequency; SCALE vetoed to HOLD on diminishing marginal returns (MER drop while
   spend rises); product plateau → HARVEST with seasonality guard (<12 weeks history).
+- Predictive pre-score ✅ (Phase 3.5) — score hook/creative variants BEFORE the paid
+  test (rule-based checklist or Claude judgment; gap identified from AdTest.AI-style
+  commercial tools, see knowledge/investigacion/). Always ungated.
 - Dashboard = private login web app (IntoSpirit); headline = per-product verdict
   (sirve/no sirve) with P&L. Deploy-ready for Render (DEPLOY.md). SaaS multi-tenant
   subscription = explicit ROADMAP, not built (fase inicial: IntoSpirit first).

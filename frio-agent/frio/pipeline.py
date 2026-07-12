@@ -114,6 +114,40 @@ class Phase3Result:
     gate_message: str | None = None  # why a render was blocked (if it was)
 
 
+@dataclass
+class Phase3PrescoreResult:
+    product: dict | None
+    ranked: list[dict] = field(default_factory=list)  # [{"brief":..., "prescore":...}]
+    gate_message: str | None = None
+
+
+def run_phase3_5_prescore(
+    niche: str | None = None,
+    seed: str | None = None,
+    *,
+    n_variants: int | None = None,
+    config: Config | None = None,
+) -> Phase3PrescoreResult:
+    """Phase 3.5: generate several hook variants, score each BEFORE spending on the
+    paid test, and rank best-first. Always ungated — no money involved yet."""
+    from .modules import creation, prescore
+
+    config = config or load_config()
+    llm = make_llm(config)
+
+    p1 = run_phase1(seed=seed, config=config, persist=False)
+    p2 = run_phase2(niche=niche, config=config, persist=False)
+    if not p2.products:
+        return Phase3PrescoreResult(product=None, gate_message="no demand-validated products")
+
+    product = p2.products[0]
+    hooks = p1.plan.get("hook_bank", [])
+    n = n_variants or config.prescore_variants
+    briefs = creation.build_brief_variants(product, hooks, n, llm)
+    ranked = prescore.rank_variants(briefs, config, llm)
+    return Phase3PrescoreResult(product=product, ranked=ranked)
+
+
 def run_phase3(
     niche: str | None = None,
     seed: str | None = None,

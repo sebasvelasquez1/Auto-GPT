@@ -75,6 +75,11 @@ class Config(BaseSettings):
     fin_min_units: int = 10              # min sales before a verdict is trusted
     fin_test_spend_usd: float = 50.0     # min ad spend for a fair product test
 
+    # --- Predictive pre-score (before spending on the paid test) ---
+    prescore_min_to_test: float = 60.0  # 0..100; below this, recommend revising first
+    prescore_variants: int = 3          # how many hook variants to generate + score
+    adtest_api_key: str | None = None   # optional third-party scorer (adtest.ai-style)
+
     # --- Compliance (ad-policy claims scan is active; AI-UGC disclosure DEFERRED) ---
     # NOTE: FTC AI-UGC disclosure is intentionally OFF for now (revisit later — see
     # NOTES "Deferred"). The prohibited-claims scan stays on.
