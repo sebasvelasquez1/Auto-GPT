@@ -54,7 +54,10 @@ empresa registrada (LLC). El panel pide "Company registration certificate" +
 - [ ] **4.** En los permisos (scopes) de la app, activa: **Products** (productos)
       y **Orders** (órdenes). Son los únicos que necesitamos para empezar.
 - [ ] **5.** Envía la solicitud / app a revisión.
-      ⏳ TikTok la revisa (~3 semanas en EE.UU. por el chequeo legal/compliance).
+      ⏳ TikTok la revisa. ⚠️ DURACIÓN NO VERIFICADA y las fuentes SE CONTRADICEN:
+      el developer guide dice "budget 3+ weeks" (US/UK) pero el FAQ general de
+      TikTok dice "several days to two weeks". No se elige la cifra bonita —
+      se documentan ambas. Planifica para el escenario largo.
       **Durante esa espera no haces NADA más** — el reloj corre solo.
 - [ ] **6.** Cuando la app aparezca, copia el **App Key** y el **App Secret** y
       pásamelos (o súbeme un screenshot). Esos son los primeros datos que necesito.

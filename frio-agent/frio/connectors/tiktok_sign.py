@@ -1,8 +1,20 @@
 """TikTok Shop API request signing.
 
-VERIFIED algorithm — not guessed. Reproduced locally against two independent
-published test vectors (see tests/test_tiktok_sign.py), which is why this module
-exists at all: the project rule forbids guessing crypto.
+VERIFIED algorithm — not guessed. The project rule forbids guessing crypto, so this
+rests on a first-party source plus reproduced test vectors:
+  - PRIMARY: TikTok's own MIT-licensed reference implementation,
+    github.com/tiktok/ttspc-server-sample -> src/utils/sign.ts ((c) 2026 TikTok).
+  - Cross-checked against 3 independent implementations in other languages
+    (EcomPHP/tiktokshop-php Apache-2.0; hsib19/tiktok-shop-sdk MIT; plus others).
+  - Reproduced locally against two published test vectors (tests/test_tiktok_sign.py).
+
+NOTE on the official sample: it declares excludeKeys = [access_token, sign] but leaves
+the filtering line COMMENTED OUT — it expects the caller to pre-filter. We filter
+explicitly below, and test_sign_and_access_token_are_excluded pins that behaviour.
+
+UNVERIFIED: one community SDK asserts a "v2" signing format (secret only at the start,
+URL-encoded key=value&). TikTok's own sample shows ONLY the v1 symmetric-wrap form
+implemented here. Treat v2 as a community claim until first-party docs confirm it.
 
 Algorithm (TikTok Shop Open API, 202309+):
   1. Take all query params EXCEPT ``sign`` and ``access_token``.

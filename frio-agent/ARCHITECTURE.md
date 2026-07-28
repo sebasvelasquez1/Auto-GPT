@@ -61,6 +61,7 @@ top vs tee) and which themes are working.
 - Designs come from `connectors/tiktok_shop_catalog.py` (your catalog). Format
   recommendation = `recommend_blanks()` from competitor best-seller signal.
 - Margins ~10–30% (narrower) → stricter optimizer thresholds.
+  ⚠️ UNVERIFIED internal estimate — no cited source. Do not treat as market data.
 - Inherently policy-compliant (you own the designs).
 
 ### POD roadmap
@@ -98,6 +99,7 @@ You **source** an existing winning product; an approved supplier ships it.
 ```
 
 - Margins ~15–40% (wider); broader product range (incl. non-printable).
+  ⚠️ UNVERIFIED internal estimate — no cited source. Do not treat as market data.
 - ⚠️ **Compliance enforced in code:** `CJFulfillment.publish_product` refuses
   non-compliant (retail-arbitrage) products — TikTok Shop bans reselling
   Amazon/AliExpress with their branding.
@@ -112,7 +114,7 @@ You **source** an existing winning product; an approved supplier ships it.
 | **Demand signal** | Theme demand (eRank) on your designs + competitor format signal | Is it *already* selling? (Kalodata/ad-spy) |
 | **Fulfillment** | Printful (print on demand) | CJ Dropshipping (auto-buy + ship) |
 | **Compliance** | Inherently compliant | Must use approved supplier (enforced) |
-| **Margins** | ~10–30% | ~15–40% |
+| **Margins** ⚠️ | ~10–30% *(unverified)* | ~15–40% *(unverified)* |
 | **Build status** | ✅ origin + fulfillment built (offline) | ⚠️ fulfillment built; **origin deferred (Phase 2A)** |
 
 Selected by `config.pipeline` (`"pod"` | `"dropship"`) via `make_product_origin()`

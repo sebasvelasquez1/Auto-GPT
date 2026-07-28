@@ -10,8 +10,11 @@ guessed):
   - Host: https://open-api.tiktokglobalshop.com
   - Every request is SIGNED and carries: query params app_key, sign, timestamp;
     headers x-tts-access-token + content-type: application/json.
-  - Official SDKs exist for Go / Node.js / Java (NO Python SDK) -> we call the REST
-    API directly (or vendor a community Python client, e.g. Lundehund/tiktok-shop-api).
+  - NO Python client exists anywhere (verified: not on PyPI, no repo with tests, no
+    packaged project). We call the REST API directly. (An earlier note here named
+    Lundehund/tiktok-shop-api as a candidate — REMOVED: that repo now 404s and was a
+    RapidAPI scraper proxy, not the Partner API.) Reference layouts worth reading:
+    EcomPHP/tiktokshop-php (Apache-2.0, 18 modules) and hsib19/tiktok-shop-sdk (MIT).
 
 SIGNING: ✅ SOLVED — see ``tiktok_sign.py``. The algorithm was verified by locally
 reproducing two independent published test vectors (TikTok's own doc example and the

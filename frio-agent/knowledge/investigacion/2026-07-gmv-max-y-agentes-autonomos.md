@@ -48,6 +48,63 @@ P&L gana valor justo cuando el control de anuncios se pierde.
 **Lo mismo ocurre en otras plataformas:** Meta Advantage+ y Google Performance Max
 absorbieron la capa de optimización igual que GMV Max.
 
+### ✅ EVIDENCIA DURA — el contrato de API oficial de TikTok lo confirma
+**Confianza: ALTA.** Único artefacto leído de fuente PRIMARIA en toda la investigación:
+el SDK oficial `github.com/tiktok/tiktok-business-api-sdk` (org `tiktok`), archivos
+`yml_files/campaign_gmv_max_create.yml` y `gmv_max_bid_recommend.yml`.
+
+**Campos que el anunciante puede fijar al crear una campaña GMV Max:**
+`advertiser_id, store_id, campaign_name, budget, auto_budget_enabled, roas_bid,
+deep_bid_type, optimization_goal, shopping_ads_type, item_list, identity_list,
+schedule_*`
+
+**NO existe targeting en la API. Ninguno.** Sin audiencia, sin intereses, sin
+edad/género, sin ubicaciones, sin lookalike, sin keywords, sin ajuste de puja, **sin
+objeto ad group** (el nivel de grupo de anuncios no existe en GMV Max).
+
+Los enums traen una bandera `is_valid`, y solo permiten UNA configuración legal:
+
+| Campo | Únicos válidos | Marcados `is_valid: false` |
+|---|---|---|
+| `optimization_goal` | **`VALUE` solamente** | 27 otros (CONVERT, CLICK, REACH, VIDEO_VIEW…) |
+| `deep_bid_type` | **`VO_MIN_ROAS` solamente** | DEFAULT, MIN, PACING, AEO, VO_MIN… |
+| `shopping_ads_type` | `LIVE`, `PRODUCT` | **`PRODUCT_SHOPPING_ADS`**, **`VIDEO`**, CATALOG_LISTING_ADS |
+
+Además: la puja la **recomienda la plataforma** (`GET /gmv_max/bid/recommend/`), y la
+selección de video por defecto es `AUTO_SELECTION` = *"video auto selected by automation"*.
+
+⚠️ **Matiz honesto:** `is_valid:false` es específico de ESTE endpoint. Prueba que esos
+valores **no se aceptan al crear una campaña GMV Max**; **NO prueba por sí solo** el
+retiro global de VSA/PSA, y **no trae fechas**. No convertir esto en "TikTok retiró VSA
+el 1-sep-2025" — esa inferencia no la sostiene el artefacto.
+
+### El mismo patrón en China (Qianchuan/巨量引擎) — y aún más cerrado
+SDK comunitario `bububa/oceanengine` (comentarios transcritos de docs oficiales, no
+verificables directamente). En modo 托管 (gestionado):
+- La estrategia entera del comerciante son **dos opciones**: `0 优先跑量` (priorizar
+  volumen) o `1 优先成本` (priorizar costo).
+- `CampaignID` **devuelve null** en planes gestionados.
+- No se puede editar el targeting geográfico.
+- **DECISIVO:** *"目前暂不支持拉取开启'计划托管'功能的广告计划数据"* — bajo 托管, una
+  herramienta de terceros **ni siquiera puede LEER los datos de rendimiento por plan o
+  por creativo vía API.**
+- En 全域推广 el reporting es **solo agregado a nivel cuenta**, sin dimensión por
+  anuncio ni por creativo. `PROGRAMMATIC_CREATIVE` es el único tipo permitido.
+
+### La implicación honesta para un agente autónomo de anuncios
+El loop clásico del optimizador autónomo — leer métricas por creativo → matar
+perdedores → escalar ganadores → ajustar targeting/pujas — está **estructuralmente no
+disponible** en estos modos. No es "en desventaja competitiva": **la API no expone ni
+los datos para leer ni las palancas para mover.**
+
+**Lo que SÍ sobrevive fuera de la zona en disputa** (razonamiento, no cita): suministro
+de producto y creativos (la plataforma sigue necesitando videos y títulos), pre-scoring
+antes de lanzar, **P&L real cruzando COGS/fulfillment/devoluciones** (la plataforma
+optimiza ROAS sobre SU gasto, no la ganancia neta del comerciante), decisiones de
+portafolio entre productos, y el veredicto cosechar/cancelar. **El analizador comercial
+y el pre-score de Frío quedan FUERA de la zona en disputa; el motor de kill/scale a
+nivel anuncio queda DENTRO.**
+
 ---
 
 ## 2. ★ CASO DE ADVERTENCIA — Icon.com murió haciendo exactamente esto
@@ -184,3 +241,87 @@ consistente con 5-6 datos, no un patrón probado.
   relevantes para nuestra fase de AI-UGC, **sin examinar**.
 - Acciones de enforcement por gasto publicitario automatizado — no se hallaron, pero
   **la ausencia de evidencia es débil** porque los foros que la tendrían estaban bloqueados.
+
+---
+
+## 7. Barrido de builders independientes y open source (2 barridos independientes)
+
+**GitHub sí era accesible**, así que esta sección tiene evidencia real (READMEs leídos
+textualmente, fechas de commits verificadas), a diferencia del resto.
+
+### Hallazgo titular
+**Cero casos verificados —open source o indie— de un agente IA corriendo el loop
+completo con gasto publicitario real.** Ni uno.
+
+### ★ La validación más fuerte de nuestra arquitectura
+**Todos los builders serios llegaron independientemente al MISMO invariante que
+nosotros:** campañas creadas en `PAUSED`, y confirmación humana explícita en cada
+escritura. Sin contacto entre ellos.
+
+| Repo | ★ | Compuerta (verbatim del README) |
+|---|---|---|
+| AgriciDaniel/claude-ads | **7,572** | Read-only por defecto; escrituras requieren IDs + diff antes/después + aprobación + rollback |
+| pipeboard-co/meta-ads-mcp | 1,108 | *"explicit confirmation on every write"*; campañas nuevas **arrancan pausadas** |
+| TheMattBerman/meta-ads-kit | 281 | *"always with your approval"*; emite payloads dry-run |
+| attainmentlabs/meta-ads-cli | 30 | *"Campaigns are created as PAUSED by default"* + tope `MAX_DAILY_BUDGET` |
+| brandu-mos/konquest-meta-ads-mcp | 40 | *"Supervised, not autonomous — operator confirms every write"* |
+| markifact/markifact-mcp | 51 | *"Nothing goes live without you saying yes."* |
+
+**Tres de estos VENDEN la compuerta humana como característica diferenciadora**, no
+como limitación. Nuestro invariante de seguridad no es conservadurismo — es el consenso.
+
+### El único que promete autonomía total
+`mikee-ai/meta-ads-agent`: *"without you lifting a finger"*, **2 commits, creado y
+actualizado el mismo día**, 0 estrellas, licencia propietaria que prohíbe ingeniería
+inversa, sin código ni arquitectura. **Vende a US$497–2,997/mes o US$14,997 vitalicio.**
+El patrón vale decirlo claro: *el único proyecto que promete autonomía total es el de
+2 commits vendiendo licencias de US$2,997/mes.*
+
+### Los mejores intentos reales, y dónde se detienen
+- **`YunyueLi/Drip`** — scoring determinista de 8 señales → SCALE/PAUSE/HOLD/REDUCE/REFRESH,
+  *"the LLM only narrates"* (idéntico a nuestro principio). Modos shadow→copilot→autonomous.
+  **Su propio README:** *"the first verified live write on a real ad account is still on
+  the roadmap."* El agente open-source más avanzado **se detuvo exactamente en la
+  frontera de la escritura en vivo.**
+- **`brac/presswork`** — el mejor pipeline POD real (Etsy trends → FLUX → listing → ledger
+  con márgenes). `HUMAN_REVIEW_ENABLED` **por defecto true**. **Sin publicidad pagada
+  en absoluto** — depende solo de descubrimiento orgánico de Etsy.
+- **`rushikeshdhumal/ecommerce-growth-agent`** — el caso aleccionador: tiene un loop
+  plan→act→observe sobre Google/Meta/Klaviyo, **pero TODAS las integraciones son MOCK.**
+  Parece el loop completo; no toca nada real.
+- `IncomeStreamSurfer/print_on_demand_printify_automation` (126★) — **trampa**: muerto
+  desde jul-2023, era era SD v1.5, 4 scripts sueltos. Las estrellas son artefactos de
+  audiencia de YouTube.
+
+### El terreno desocupado es la UNIÓN, no la autonomía
+`presswork` hace POD descubrimiento→creativo→publicar **sin anuncios**. `Drip` hace
+kill/scale determinista **sin productos y sin haber escrito nunca en vivo**. **Nadie ha
+conectado descubrimiento → creativo → gasto con compuerta → P&L real por producto.**
+Y nadie ha publicado pre-score predictivo + detección de fatiga/meseta + veredicto a
+nivel producto juntos.
+
+### 🚨 RIESGO OPERATIVO NUEVO — baneos por patrón de llamadas
+Reportes (X/@theericcarlson, corroborado en forma por un blog de Supermetrics — **ambos
+SIN VERIFICAR**, dominios bloqueados) indican que conectar un **MCP de Meta Ads** a una
+cuenta de Facebook **provocó baneos**, incluso confirmado por un account manager. La
+hipótesis: agentes golpeando APIs a frecuencia de máquina acumulan señales de anomalía.
+
+**Lo crítico:** si esto es direccionalmente cierto, el peligro es la **forma del patrón
+de llamadas**, NO la lógica de compuertas. **Nuestros topes de gasto y HITL NO protegen
+contra esto.** Regla operativa a adoptar: los conectores de ads en vivo deben ir por una
+**app registrada + API key oficial**, nunca por un shim MCP o scraping. Requiere
+verificación independiente antes de encender cualquier conector de anuncios en vivo.
+
+### Sobre forkear código: no hay nada que forkear
+- **No existe cliente Python de TikTok Shop** en ningún lado (ni PyPI, ni repo con tests).
+- Las implementaciones Python que existen están dentro de apps **sin licencia**
+  (= todos los derechos reservados, inusables).
+- **Nada de guardarraíles de gasto / HITL existe como librería.** La lista curada del
+  dominio (`awesome-agentic-advertising`) **no tiene ni una entrada** sobre topes de
+  presupuesto o revisión humana para plataformas de anuncios.
+
+**Conclusión de ingeniería:** la mitad valiosa y riesgosa de Frío — reglas deterministas
+de kill/scale, ledger append-only con topes duros, asimetría kills-auto/scales-gated,
+fatiga/meseta, pre-score, y veredicto de P&L por producto — **no tiene equivalente
+open source en ninguna parte.** Dos barridos independientes no hallaron ninguno. Ese
+trabajo está correctamente construido en casa, y **es el foso.**
