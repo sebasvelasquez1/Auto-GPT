@@ -80,10 +80,21 @@ class Config(BaseSettings):
     prescore_variants: int = 3          # how many hook variants to generate + score
     adtest_api_key: str | None = None   # optional third-party scorer (adtest.ai-style)
 
-    # --- Compliance (ad-policy claims scan is active; AI-UGC disclosure DEFERRED) ---
-    # NOTE: FTC AI-UGC disclosure is intentionally OFF for now (revisit later — see
-    # NOTES "Deferred"). The prohibited-claims scan stays on.
-    require_ai_disclosure: bool = False
+    # --- Compliance (claims scan + AI-UGC disclosure both ACTIVE) ---
+    # AI disclosure was previously deferred as an FTC-only concern. Turned ON by
+    # default 2026-07-28 after research found PLATFORM-level mandates with severe
+    # penalties, not just a regulator's guidance:
+    #   - TikTok Shop requires AIGC disclosure for AI-generated product imagery /
+    #     AI models / fabricated lifestyle scenes; the penalty ladder ends at
+    #     PERMANENTLY disabling commission withdrawal, then a permanent ban, and
+    #     automated detection actively scans for undisclosed synthetic content.
+    #   - China's AI Content Labeling Measures (effective 2025-09-01) require both
+    #     explicit (on-screen) and implicit (file-metadata) labels.
+    #   - FTC: clear & conspicuous, up to $53,088 per violation.
+    # Both source tiers are search-extract quality (see knowledge/investigacion/) and
+    # the exact effective dates conflict (13 vs 26 May 2026) — but the SAFE default
+    # under uncertainty is disclosure ON. Flip off only with an explicit decision.
+    require_ai_disclosure: bool = True
     ai_disclosure_text: str = "AI-generated • results not guaranteed"
 
     # --- Data ---
