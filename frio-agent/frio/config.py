@@ -97,6 +97,22 @@ class Config(BaseSettings):
     require_ai_disclosure: bool = True
     ai_disclosure_text: str = "AI-generated • results not guaranteed"
 
+    # --- Account-safety guardrails (see guardrails.py) ---
+    # The documented ban vector is VOLUME + SIMILARITY, not "AI" as a category.
+    # Suspensions are opaque and appeals fail, so an autonomous loop must never be
+    # able to burn the seller's only account. Deterministic, code-enforced.
+    guard_max_listings_per_day: int = 5      # hard ceiling on autonomous listings/24h
+    guard_max_similarity: float = 0.7        # reject near-duplicate designs
+
+    # --- Live ads operational safety (from TikTok's official SDK/doc contract) ---
+    # DELETE is IRREVERSIBLE ("the operation status of a deleted campaign cannot be
+    # modified"), so a kill must NEVER map to DELETE. DISABLE is reversible.
+    ads_kill_operation: str = "DISABLE"      # never "DELETE"
+    # TikTok refuses budget writes 23:55-00:00 in the ad account's timezone.
+    ads_budget_blackout_start: str = "23:55"
+    ads_budget_blackout_end: str = "00:00"
+    ads_max_batch_ids: int = 20              # API caps status/budget batches at 20
+
     # --- Data ---
     database_url: str = "sqlite:///frio.db"
 

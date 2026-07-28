@@ -173,3 +173,84 @@ compatible. Como ya elegimos Printful, la restricción de región se cumple.
 4. ✅ **REGLA ADOPTADA:** browser automation prohibido en todo el código — es la frontera
    del baneo, no solo una preferencia de limpieza.
 5. **Livestream autónomo con IA: fuera del roadmap.** Prohibido en las tres plataformas.
+
+---
+
+## 8. 🚨 BLOQUEADOR CRÍTICO PARA EL REGISTRO (evidencia: docs oficiales espejados)
+
+Del doc oficial "Register as a developer" (`business-api.tiktok.com/portal/docs?id=1738855176671234`,
+obtenido vía un espejo verbatim que declara su `source_url`):
+
+- El correo de comunicación **debe ser de dominio de empresa verificado**:
+  *"You will be rejected if you are using a personal email or a temporary email."*
+- El sitio web de la empresa debe ser **"publicly accessible… valid, functioning, fully
+  developed and professionally presented"** y **coincidir con el dominio del correo**.
+- ***"[TikTok] cannot onboard personal accounts or individual developers."*
+- Resolución en **3 días hábiles**. Tipo de usuario a elegir: **Direct Advertiser**.
+
+**Impacto directo:** una cuenta **@gmail.com será rechazada**. Antes de aplicar hace
+falta (a) un dominio propio de IntoSpirit, (b) un correo en ese dominio, (c) un sitio web
+vivo y profesional en ese mismo dominio. Esto es de la Marketing API (ads); **NO
+VERIFICADO** si TikTok Shop Partner Center exige lo mismo, pero el patrón de pedir
+"certificado de registro de empresa" en el flujo que vio el usuario apunta en la misma
+dirección.
+
+## 9. 🟢 SANDBOX CONFIRMADO — se puede construir ANTES de la aprobación
+
+Del doc oficial `id=1738855331457026`:
+- Base URL: **`https://sandbox-ads.tiktok.com/open_api`**
+- **Una cuenta sandbox por app de desarrollador**; los permisos de la app se reflejan
+  automáticamente en la cuenta sandbox.
+- **~20 endpoints soportados** — exactamente los que necesita nuestra Fase 6: CRUD y
+  status de campaign/adgroup/ad, subida de imagen y video, `/report/integrated/get/`,
+  identity.
+- Límites sandbox: 1 QPS / 30 QPM / 1,000 QPD por endpoint.
+- ⚠️ **Datos de reporte simulados SOLO para 2020-12-08 → 2020-12-19** → la lógica de
+  métricas sigue necesitando nuestros fixtures offline (que ya tenemos).
+
+## 10. Contrato operativo de la Ads API — restricciones que el código DEBE respetar
+
+| Restricción | Valor | Por qué importa |
+|---|---|---|
+| **`DELETE` es IRREVERSIBLE** | *"The operation status of a deleted campaign cannot be modified"* | **Un "kill" jamás debe mapear a DELETE.** Solo `DISABLE`. → `ads_kill_operation="DISABLE"` |
+| **Bloqueo de presupuesto** | **23:55–00:00** en la zona horaria de la cuenta | No se pueden fijar ni actualizar presupuestos. El scheduler nunca debe intentarlo ahí. |
+| Lotes | 20 IDs por request (status, presupuesto, creación de ads) | Hay que trocear. |
+| Rate limit por defecto | Tier **Basic: 10 QPS / 600 QPM / 864,000 QPD**; error `40100` | Generoso para nuestro loop. |
+| Reportes sync | máximo 30 días por request | Rangos mayores → async. |
+| Async reports | 1 QPS/app, 4,500 tareas/app/día, 500 creaciones/cuenta/hora | |
+| Latencia de datos | ~11 horas (reportado por Airbyte, terceros) | Re-sincronizar ≥3 días por atribución. |
+
+### La revisión de anuncios es ASÍNCRONA y SIN SLA — cambia la arquitectura del loop
+`GET /ad/review_info/` devuelve `ALL_AVAILABLE` | `PART_AVAILABLE` | `UNAVAILABLE`.
+**No se halló ningún SLA documentado — la latencia es NO VERIFICADA.**
+El pipeline **no puede asumir "creado = sirviendo"**. Debe: crear → **consultar
+`review_info` hasta `ALL_AVAILABLE`** → recién ahí arrancar el reloj de gasto/medición →
+si `UNAVAILABLE`, regenerar el creativo o apelar (`/adgroup/appeal/`, también por
+consulta repetida).
+⚠️ **Trampa silenciosa:** tratar `PART_AVAILABLE` como éxito. Significa entrega
+geográfica parcial → distorsiona el cálculo de CPA/ROAS contra el targeting pretendido.
+
+### GMV Max: candado de exclusividad
+*"For each TikTok Shop, only one ad account can be authorized to create GMV Max
+Campaigns using the TikTok Shop."* Requiere `exclusive_authorization/create/` y aceptar
+las GMV Max Guidelines. La superficie de acción se reduce a: **objetivo de ROAS +
+presupuesto diario + selección de productos/identidades + añadir/quitar creativos +
+pausar.** `GET /gmv_max/bid/recommend/` da un valor de referencia **de la propia TikTok**
+para contrastar cualquier ROAS que proponga el LLM — guardarraíl determinista gratis.
+Usar `request_id` como idempotencia para que un reintento no duplique una campaña que gasta.
+
+### Automated Rules como segundo interruptor de emergencia
+Acciones disponibles: `TURN_ON`, `TURN_OFF`, `MESSAGE`, `DAILY_BUDGET`,
+`LIFETIME_BUDGET`, `BID`. Recomendación de ingeniería: **incluso con nuestro motor como
+optimizador principal, registrar una regla `TURN_OFF` del lado de TikTok sobre un umbral
+de gasto/ROAS** — un segundo interruptor independiente que sigue funcionando **aunque
+nuestro proceso muera**. Ganancia de seguridad real para un sistema que gasta solo.
+
+## 11. ⚠️ Los ToS de desarrollador NO se pudieron leer
+`developers.tiktok.com` bloqueado. **No se puede afirmar nada sobre qué dicen los ToS
+respecto a decisiones automatizadas, auto-pujas, operaciones masivas o creación de
+anuncios totalmente automática.** Hay endpoints `term/check|confirm|get` — o sea, existen
+términos que el anunciante debe aceptar programáticamente, y su contenido es justo lo que
+no pudimos leer.
+**REGLA: un humano debe leer los ToS antes de cualquier gasto real.** Es decisión
+legal del dueño, no una que yo pueda asumir.
