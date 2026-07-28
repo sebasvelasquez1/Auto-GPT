@@ -254,3 +254,99 @@ términos que el anunciante debe aceptar programáticamente, y su contenido es j
 no pudimos leer.
 **REGLA: un humano debe leer los ToS antes de cualquier gasto real.** Es decisión
 legal del dueño, no una que yo pueda asumir.
+
+---
+
+## 12. 🚨 GMV Max SUBE SU PROPIO PRESUPUESTO — agujero en nuestro modelo de seguridad
+
+**El hallazgo más importante para la arquitectura, y el más peligroso.**
+
+Docs de ayuda de TikTok (`about-gmv-max-auto-budget-increase`,
+`about-one-click-gmv-max-campaign-creation` — V-SEARCH, no leídas directamente):
+GMV Max **aumenta su propio presupuesto diario hasta +50%, reportadamente varias veces
+en un mismo día**, cuando el ROI se sostiene. También **crea campañas enteras solo** para
+productos inscritos en eventos promocionales de TikTok Shop.
+⚠️ Los multiplicadores exactos ("+50%, hasta 10× el mismo día") mezclan el artículo de
+ayuda con blogs de terceros — **el mecanismo está bien corroborado, las cifras exactas NO**.
+Confirmarlas contra el artículo oficial antes de codificarlas en lógica de topes.
+
+Meta Advantage+ y Google PMax se comportan igual.
+
+### Por qué esto rompía nuestro diseño
+Nuestro `spend_ledger` registra **lo que NOSOTROS autorizamos**. Si la plataforma gasta
+por su cuenta, el ledger queda limpio mientras el dinero real se va. **Confiar solo en el
+ledger, con GMV Max encendido, sería una falsa sensación de seguridad.**
+
+**La plataforma debe modelarse como un ACTOR EXTERNO que puede romper nuestro tope.**
+
+### ✅ ACCIÓN TOMADA
+`spend.reconcile_platform_spend()` — compara lo autorizado contra el gasto **real
+reportado por la plataforma**:
+- Detecta y reporta la deriva (`platform_overspent`, `drift_usd`).
+- **Lanza `SpendCapError` si el gasto REAL supera el tope diario**, aunque nuestro ledger
+  esté impecable — porque el tope ya se rompió en el mundo real.
+- **Regla:** todo conector de anuncios en vivo DEBE llamarla en cada ciclo de polling.
+- Tests en `tests/test_spend_reconcile.py`.
+
+---
+
+## 13. Validación independiente de nuestro invariante (barrido V-CODE de GitHub)
+
+**Resultado negativo sólido: no existe ningún repo open source que sea un agente autónomo
+para vender en TikTok Shop. Ninguno.** El espacio se divide en tres mitades que **nadie ha
+unido jamás**: SDKs de TikTok Shop · MCPs de TikTok Ads · skills de creativos UGC.
+
+Búsquedas que devolvieron **cero**: `autogpt ecommerce agent selling`,
+`langgraph ecommerce autonomous agent product`, `tiktok shop automation agent gmv`,
+`ecommerce agent autonomous product listing ads spend`.
+**No hay agente de e-commerce basado en AutoGPT. Ni de TikTok Shop con CrewAI. Ni de
+dropshipping TikTok con CJ** (los repos de CJ son wrappers pelados, 0–1★).
+
+### Dos proyectos llegaron por su cuenta a NUESTRO invariante exacto
+- `superjack2050/1688-cli` (47★): compras protegidas tras prompts TTY o un flag `--agent`
+  explícito *"so agents can't move money silently"* — el mejor diseño de compuerta de gasto hallado.
+- `wes4ray-coder/store-command-center-public`: "prayer queue" de aprobación humana;
+  `paypal_payout`/`wallet_send`/`secret_export` son compuertas duras **no desactivables**;
+  el resto se auto-ejecuta dentro de topes.
+- `mvanhorn/printing-press-library`: MCP deliberadamente **solo lectura** —
+  `"mcp_ready": "safe_v1_read_only"`, mutaciones *"deferred until idempotency and retry
+  behavior are designed"*.
+
+**Nuestro invariante está alineado con el consenso, no atrasado respecto a él.**
+
+### ⚠️ Y el contraejemplo que muestra el riesgo
+`amekala/ads-mcp` (75★): **37 herramientas de TikTok, ciclo completo — pausar/reanudar/
+actualizar campañas, grupos, anuncios y presupuestos. Gasto real. Única protección:
+"las campañas nuevas siempre se crean pausadas". Sin aprobación secundaria.**
+`pizzzzzza/printkk-agent-skill` (9★): enseña a agentes a **crear órdenes PrintKK y pagar
+con wallet**, **sin compuerta, sin estimación de costo, sin confirmación documentada.**
+
+### Vaporware — la trampa de este espacio
+- `Zeeshanahmad4/TikTok-Shop-Affiliate-Outreach-Bot` (**56★**): **SIN CÓDIGO FUENTE.** Solo
+  README — repo de marketing de una app de escritorio cerrada y de pago. **El "bot" de
+  TikTok Shop con más estrellas de GitHub no tiene código adentro.**
+- `Two-Weeks-Team/socialseed-agent`: **el repo contiene únicamente un LICENSE. Cero código.**
+- `Vanszs/tiktok-viral-factory` (6★): el README dice "publica… totalmente automatizado";
+  **el código dice `TikTok integration (manual → auto-post) ⬜ Pending`.**
+
+**Lección de método:** dos de estos fueron reportados inicialmente como agentes autónomos
+funcionales **basándose en sus READMEs**. Revisar el código los desmintió. Nunca creer un
+README sin abrir el código.
+
+### Competidores comerciales — lo verificado
+- **Agentative** (agentative.ai): producto real, **híbrido configurable** — *"puedes fijar
+  requisitos de aprobación para cualquier tipo de acción que quieras revisar antes de que
+  se ejecute"*. Misma postura que Frío. **Pero: empresa anónima, sin fundadores, sin
+  financiación, sin reseñas independientes.** ⚠️ Discrepancia de precio sin resolver:
+  $49/mes vs $149/mes, ambas de su propio sitio.
+- **Stormy AI** (YC S24): legítima y financiada, **pero NO es competidora** — es de
+  contacto con creadores. Su propio blog: *"marca campañas de bajo rendimiento **para que
+  tú las pauses**"* y avisa de stock *"en una hoja de cálculo compartida"*. Marca y avisa;
+  no actúa. Su biblioteca de blogs sobre TikTok Shop es **SEO, no su producto.**
+- **Creatify**: el tercero más cercano a autonomía real — integración de **escritura** a
+  cuentas de Meta/Google/TikTok. Aun así: *"tú fijas objetivos y guardarraíles y apruebas
+  la dirección… tú tienes la última palabra."*
+
+**Conclusión estructural:** la autoridad de gasto sin supervisión está en manos de **las
+propias plataformas publicitarias**, no de ningún proveedor de AI-UGC. Todas las
+herramientas creativas se detienen en "listo para publicar" o "lanza con un clic".
