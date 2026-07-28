@@ -325,3 +325,73 @@ de kill/scale, ledger append-only con topes duros, asimetría kills-auto/scales-
 fatiga/meseta, pre-score, y veredicto de P&L por producto — **no tiene equivalente
 open source en ninguna parte.** Dos barridos independientes no hallaron ninguno. Ese
 trabajo está correctamente construido en casa, y **es el foso.**
+
+---
+
+## 8. ⚠️ CORRECCIÓN IMPORTANTE a la sección 1 (evidencia primaria: SDK oficial de TikTok)
+
+La sección 1 concluyó que "la superficie de optimización de anuncios desapareció".
+**Eso fue DEMASIADO ABSOLUTO.** Una investigación posterior leyó el **código fuente del
+SDK oficial de TikTok** (`github.com/tiktok/tiktok-business-api-sdk` — fuente primaria,
+no extracto de buscador) y encontró lo siguiente:
+
+### GMV Max SÍ es controlable por API
+| Endpoint | Qué permite |
+|---|---|
+| `POST /open_api/v1.3/campaign/gmv_max/create/` | crear campaña GMV Max |
+| `POST /open_api/v1.3/campaign/gmv_max/update/` | **actualizar (incl. presupuesto)** |
+| `GET /open_api/v1.3/gmv_max/report/get/` | **reporting propio** |
+| `GET /open_api/v1.3/gmv_max/bid/recommend/` | puja recomendada |
+| `GET /gmv_max/video/get/`, `/identity/get/` | creativos e identidades |
+| `POST /gmv_max/exclusive_authorization/create/` | enlaza la Shop con los ads |
+
+Y la suite **Smart+** completa es igualmente accionable por API
+(`/smart_plus/campaign|adgroup|ad/{create,update,status/update}/`).
+
+### ★★★ Automated Rules API — encaja EXACTO con nuestro invariante de seguridad
+`POST /open_api/v1.3/optimizer/rule/create/` (+ `/update/`, `/batch_bind/`,
+`/result/list/`) permite crear **reglas que TikTok ejecuta en SUS servidores**.
+
+**Esto es el mecanismo sancionado para nuestra asimetría kills-auto / scales-gated:**
+empujamos las reglas de **matar/pausar** hacia abajo, a la propia TikTok (deterministas,
+sin humano — que es exactamente como ya las diseñamos), y **mantenemos toda acción que
+AUMENTA gasto en nuestra compuerta humana**. No hay que pelear con la plataforma: ella
+misma provee el carril.
+
+### Otros hallazgos accionables del SDK oficial
+- **Ad ACO** (`/ad/aco/create/`): TikTok combina automáticamente hooks/textos/videos que
+  subamos. Conecta directo con nuestra Fase 3.5 (pre-score) — le damos variantes ya
+  filtradas.
+- **Ads es una API y un programa de desarrollador SEPARADOS** de TikTok Shop
+  (`business-api.tiktok.com`). **Dos aprobaciones, dos flujos de auth, dos juegos de
+  credenciales.** Planificar el tiempo de ambas.
+- **Vida de tokens (del docstring oficial):** access token **24 horas**, refresh token
+  **1 año**. → Necesitamos un **job diario de refresh** y una ruta de re-autorización anual.
+- **La revisión de anuncios es una compuerta real** que un loop autónomo debe consultar y
+  manejar (`/smart_plus/ad/review_info/`, `/material/review_info/`, `/ad/appeal/`).
+- ⚠️ **Allowlist:** el SDK muestra campos marcados "allowlist-only feature… contact your
+  TikTok representative". **NO VERIFICADO** si GMV Max requiere habilitación por un
+  representante. Riesgo de calendario a confirmar.
+- ⚠️ **Rate limits NO VERIFICADOS.** Solo cifra comunitaria de baja confianza (~1 req/s
+  por anunciante, ~600/hora por app). Verificar antes de diseñar el polling.
+- ⚠️ **ToS de desarrollador NO RECUPERADO** — si permite creación/cambio de presupuesto
+  totalmente autónomo sigue siendo **pregunta legal abierta** antes de encender Fase 6.
+
+### 🟢 Y la mejor noticia operativa: HAY SANDBOX en TikTok Shop
+- **Development Shops**: `partner.tiktokshop.com/docv2/page/seller-center-development-shops`
+- API testing tool bajo "Development kits"; simulación manual de estados de orden.
+- ⚠️ **NO VERIFICADO** si son accesibles ANTES de la aprobación completa — que es lo
+  único que importa para desbloquearnos. Vale la pena preguntarlo a soporte.
+- (Contraste: el README del SDK oficial de Ads **no menciona sandbox** — sin verificar.)
+
+### Nota sobre herramientas de datos (Kalodata, FastMoss, EchoTik, Shoplus)
+Barrido de GitHub (evidencia real): **Kalodata no tiene API pública** — todos los repos
+son scrapers, uno con headers de navegador falsificados contra endpoints internos.
+FastMoss, EchoTik y Shoplus **sí** tienen API (FastMoss incluso un servidor MCP), pero un
+toolkit de RPA reporta que **6 de sus 7 módulos web no tienen API y hay que raspar el DOM**.
+**Inferencia etiquetada:** ninguna aparece como socio oficial de TikTok, y el ecosistema
+de scrapers alrededor sugiere que sus datos son raspados, no licenciados.
+**Recomendación:** usarlas solo como señal advisory detrás de un conector que degrada a
+fixtures (nuestro patrón de casa), **nunca como fuente de verdad para una decisión de
+gasto**. La ruta sancionada para todo lo que mueva dinero es la TikTok Shop Open API +
+la Reporting API de Ads.
