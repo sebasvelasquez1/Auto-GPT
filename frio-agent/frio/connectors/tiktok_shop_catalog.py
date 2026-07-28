@@ -13,11 +13,16 @@ guessed):
   - Official SDKs exist for Go / Node.js / Java (NO Python SDK) -> we call the REST
     API directly (or vendor a community Python client, e.g. Lundehund/tiktok-shop-api).
 
+SIGNING: ✅ SOLVED — see ``tiktok_sign.py``. The algorithm was verified by locally
+reproducing two independent published test vectors (TikTok's own doc example and the
+EcomPHP SDK unit test), pinned in tests/test_tiktok_sign.py. Not guessed.
+
 STILL NEEDED before the live call can be written (honest gaps — not invented):
-  1. The request-signature algorithm doc (the "sign" gen algorithm) — referenced in
-     the guide but not yet in hand; the sign() must NOT be guessed (crypto).
-  2. The exact Products API list endpoint/path + params (Products API overview).
-  3. Real credentials (app_key/app_secret/access_token) after the ~3-week app review.
+  1. The exact Products API list endpoint/path + params (Products API overview).
+  2. Real credentials (app_key/app_secret/access_token) after app review.
+  3. Confirmation of WHICH Partner Center onboarding path a seller-developer takes
+     (the "Start Business" business-certificate flow appears to be the service-partner
+     funnel, not ours — its region choice is IRREVERSIBLE, so do not submit blind).
 
 Offline: fixtures of designs the seller "already owns".
 """

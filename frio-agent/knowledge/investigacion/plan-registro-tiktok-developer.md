@@ -12,7 +12,34 @@ Somos "Seller Developer" → Custom App → autorización directa 1:1 a TU tiend
 - [ ] Tu login de TikTok Shop (el mismo con el que entras al Seller Center).
 - [ ] Nada más — los datos del negocio ya están ligados a tu tienda.
 
-## Los pasos (mañana, en orden)
+---
+## 🛑 ALTO — actualización tras la investigación (2026-07-28)
+
+**NO envíes el formulario "Start Business" / "Category & market"** (el de
+`/approval/profile/apply-certificate`) todavía. Razones:
+
+1. Su texto ("post your service", "clients... authorize your service") es del embudo
+   de **Service Partner** — quien vende servicios a OTROS vendedores. Nosotros somos
+   *seller developer* (app privada para nuestra propia tienda). Probablemente es el
+   embudo equivocado.
+2. La región de registro **NO se puede cambiar una vez aprobada**. Enviar mal = daño
+   permanente.
+3. La documentación de TikTok sí distingue dos rutas: existe una página propia
+   "Seller Developer Onboarding Onepager"
+   (`partner.tiktokshop.com/docv2/page/seller-developer-onboarding-onepager`)
+   distinta de "Register as a service partner".
+
+**Acción de mayor valor (2 min):** abre esa página del onepager (tú SÍ puedes; el
+agente recibe 403) y pega el texto en el chat. Eso resuelve la duda sin arriesgar nada.
+**Alternativa segura:** preguntar por el chat de soporte de Partner Center si un
+Custom App para la propia tienda requiere el certificado de empresa.
+
+⚠️ **Riesgo abierto sin resolver:** no se pudo verificar si se puede aprobar sin
+empresa registrada (LLC). El panel pide "Company registration certificate" +
+"Legal representative's information".
+
+---
+## Los pasos (mañana, en orden — SOLO tras aclarar lo de arriba)
 - [ ] **1.** Entra al login oficial del Partner Center Console:
       **https://partner-sso.tiktok.com/account/login**
       (confirmado por la doc oficial "About the Partner Center Console").
