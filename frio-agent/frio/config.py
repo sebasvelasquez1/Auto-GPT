@@ -1,0 +1,149 @@
+"""Runtime configuration (replaces Auto-GPT's god-object Config with pydantic-settings).
+
+All values come from env vars prefixed FRIO_ (or a .env file). The gating flags
+here are what the capability registry reads to decide whether a gated/HITL
+capability is available — keep money/commerce capabilities off by default.
+"""
+
+from __future__ import annotations
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Config(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="FRIO_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    # --- Targeting ---
+    niche: str = "spirituality"
+    # Default seed brand for competitor discovery (see modules/competitors.py).
+    seed_brands: str = "Spiritual Gangster"
+    # Which pipeline's product-origin + fulfillment modules are active.
+    pipeline: str = "pod"  # "pod" | "dropship"
+
+    # --- Gating flags (default OFF — gated capabilities stay hidden) ---
+    creation_enabled: bool = False      # spend money rendering AI-UGC video
+    seller_approved: bool = False       # TikTok Shop seller + app approved
+    ads_live_enabled: bool = False      # live ad spend allowed
+
+    # --- Spend caps (hard ceilings enforced against the spend ledger) ---
+    daily_spend_cap_usd: float = 0.0
+    per_campaign_spend_cap_usd: float = 0.0
+    per_clip_cost_cap_usd: float = 0.0   # per AI-UGC video clip
+    per_image_cost_cap_usd: float = 0.0  # per AI-UGC image (carousel slide)
+
+    # --- Product selection ---
+    # Min blended demand-vs-competition score (0..1) for a POD design to pass.
+    demand_threshold: float = 0.2
+    pod_blank: str = "tee"  # default blank product for mockups
+
+    # --- Optimize engine (kill/scale thresholds; in config, not code) ---
+    opt_kill_spend_no_atc_usd: float = 20.0   # spend with 0 add-to-carts -> kill
+    opt_kill_ctr_min: float = 0.01            # CTR floor (1%)
+    opt_kill_min_impressions: int = 1000      # min impressions before CTR judged
+    opt_target_cpa_usd: float = 0.0           # 0 = disabled
+    opt_kill_cpa_multiple: float = 3.0        # CPA > N x target -> kill
+    opt_scale_mer_min: float = 2.0            # MER at/above -> scale candidate
+    opt_scale_min_purchases: int = 3          # need real conversions before scaling
+    opt_scale_budget_step_pct: float = 0.20   # +20% per scale step
+    # Statistical rigor (fewer false kills; Thompson budget allocation)
+    opt_use_statistical_ctr: bool = True      # kill on CTR only if confidently below floor
+    opt_ctr_confidence_z: float = 1.96        # 95% (Wilson upper bound)
+    opt_scale_pool_usd: float = 0.0           # if >0, Thompson-allocate this pool to winners
+
+    # Ad/creative fatigue (TikTok fatigues ~4x faster than Meta; CTR warns before CPA)
+    opt_fatigue_ctr_drop: float = 0.20        # recent CTR >=20% below baseline -> fatigued
+    opt_fatigue_frequency_max: float = 3.5    # cold-audience frequency ceiling
+    opt_fatigue_recent_days: int = 3          # recent window vs prior baseline
+    opt_fatigue_min_impressions: int = 500    # per window, before judging fatigue
+
+    # Scaling plateau (diminishing returns — judge the MARGINAL return, not the average)
+    opt_plateau_spend_rise: float = 0.20      # spend up >=20% ...
+    opt_plateau_mer_drop: float = 0.15        # ...while MER down >=15% -> stop scaling
+
+    # Product lifecycle (plateau -> harvest, not kill, while still profitable)
+    fin_decline_weeks: int = 3                # consecutive declining weeks -> plateau/decline
+    fin_seasonality_min_weeks: int = 12       # less history than this -> flag "verify seasonality"
+
+    # --- Financial / commercial analyzer (product viability) ---
+    fin_platform_fee_pct: float = 0.08   # TikTok Shop apparel referral (incl. US pay proc)
+    fin_payment_fee_pct: float = 0.0
+    fin_default_return_rate: float = 0.0
+    fin_target_poas: float = 1.5         # healthy ad-profitability
+    fin_scale_poas: float = 2.0          # strong enough to scale
+    fin_min_units: int = 10              # min sales before a verdict is trusted
+    fin_test_spend_usd: float = 50.0     # min ad spend for a fair product test
+
+    # --- Predictive pre-score (before spending on the paid test) ---
+    prescore_min_to_test: float = 60.0  # 0..100; below this, recommend revising first
+    prescore_variants: int = 3          # how many hook variants to generate + score
+    adtest_api_key: str | None = None   # optional third-party scorer (adtest.ai-style)
+
+    # --- Compliance (claims scan + AI-UGC disclosure both ACTIVE) ---
+    # AI disclosure was previously deferred as an FTC-only concern. Turned ON by
+    # default 2026-07-28 after research found PLATFORM-level mandates with severe
+    # penalties, not just a regulator's guidance:
+    #   - TikTok Shop requires AIGC disclosure for AI-generated product imagery /
+    #     AI models / fabricated lifestyle scenes; the penalty ladder ends at
+    #     PERMANENTLY disabling commission withdrawal, then a permanent ban, and
+    #     automated detection actively scans for undisclosed synthetic content.
+    #   - China's AI Content Labeling Measures (effective 2025-09-01) require both
+    #     explicit (on-screen) and implicit (file-metadata) labels.
+    #   - FTC: clear & conspicuous, up to $53,088 per violation.
+    # Both source tiers are search-extract quality (see knowledge/investigacion/) and
+    # the exact effective dates conflict (13 vs 26 May 2026) — but the SAFE default
+    # under uncertainty is disclosure ON. Flip off only with an explicit decision.
+    require_ai_disclosure: bool = True
+    ai_disclosure_text: str = "AI-generated • results not guaranteed"
+
+    # --- Account-safety guardrails (see guardrails.py) ---
+    # The documented ban vector is VOLUME + SIMILARITY, not "AI" as a category.
+    # Suspensions are opaque and appeals fail, so an autonomous loop must never be
+    # able to burn the seller's only account. Deterministic, code-enforced.
+    guard_max_listings_per_day: int = 5      # hard ceiling on autonomous listings/24h
+    guard_max_similarity: float = 0.7        # reject near-duplicate designs
+
+    # --- Live ads operational safety (from TikTok's official SDK/doc contract) ---
+    # DELETE is IRREVERSIBLE ("the operation status of a deleted campaign cannot be
+    # modified"), so a kill must NEVER map to DELETE. DISABLE is reversible.
+    ads_kill_operation: str = "DISABLE"      # never "DELETE"
+    # TikTok refuses budget writes 23:55-00:00 in the ad account's timezone.
+    ads_budget_blackout_start: str = "23:55"
+    ads_budget_blackout_end: str = "00:00"
+    ads_max_batch_ids: int = 20              # API caps status/budget batches at 20
+
+    # --- Data ---
+    database_url: str = "sqlite:///frio.db"
+
+    # --- Dashboard (private, login-protected; IntoSpirit) ---
+    dashboard_user: str = "frio"
+    dashboard_password: str | None = None       # login password (must be set to start)
+    dashboard_session_secret: str | None = None  # signs session cookies (set in prod)
+    dashboard_secure_cookies: bool = True        # set 0 only for local http testing
+    dashboard_brand: str = "IntoSpirit"
+
+    # --- Credentials (optional; absent => related connectors are inert) ---
+    anthropic_api_key: str | None = None
+    similarweb_api_key: str | None = None
+    fastmoss_api_key: str | None = None
+    printful_api_key: str | None = None  # POD fulfillment
+    cj_api_key: str | None = None  # Dropshipping fulfillment (CJ Dropshipping)
+    fal_api_key: str | None = None  # video gen: one key -> Veo/Kling/Runway via fal.ai
+    higgsfield_api_key: str | None = None  # video+image: Nano Banana/Soul/Seedance via MCP
+    video_provider: str = "veo"  # veo | kling | runway | prizmad | arcads
+    image_provider: str = "nano_banana"  # nano_banana | soul | flux | gpt_image
+    # TikTok Shop API — custom app, seller in-house (user_type=0). Per the official
+    # developer guide, a signed request needs app_key + app_secret + a per-shop
+    # access_token (from the OAuth auth_code exchange) + a refresh_token, and the
+    # shop_cipher identifies the specific shop. Host: open-api.tiktokglobalshop.com.
+    tiktok_shop_app_key: str | None = None
+    tiktok_shop_app_secret: str | None = None
+    tiktok_shop_access_token: str | None = None
+    tiktok_shop_refresh_token: str | None = None
+    tiktok_shop_cipher: str | None = None
+    tiktok_ads_api_key: str | None = None
+
+
+def load_config() -> Config:
+    return Config()
