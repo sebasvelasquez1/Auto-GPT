@@ -11,7 +11,10 @@ import pytest
 
 from frio.config import Config
 from frio.db.base import init_db, make_session_factory
-from frio.spend import SpendCapError, guard_and_record, reconcile_platform_spend
+from frio.spend import (
+    SpendCapError, gmv_max_worst_case_daily_budget, guard_and_record,
+    reconcile_platform_spend,
+)
 
 
 def _session(tmp_path, name):
@@ -57,3 +60,31 @@ def test_zero_cap_means_no_cap_breach_check(tmp_path) -> None:
         r = reconcile_platform_spend(s, cfg, category="ads", platform_reported_usd=5.0)
     assert r["platform_overspent"] is True
     assert r["cap_breached"] is False  # cap disabled -> no ceiling to breach
+
+
+def test_gmv_max_worst_case_disabled_returns_nominal_budget() -> None:
+    """Our safe default: auto_budget_enabled=False -> nominal budget, no surprise."""
+    assert gmv_max_worst_case_daily_budget(500.0, auto_budget_enabled=False) == 500.0
+
+
+def test_gmv_max_worst_case_matches_tiktok_own_worked_example() -> None:
+    """$500/day at TikTok's own defaults (50% step, limit 10) -> $3,000/day."""
+    worst = gmv_max_worst_case_daily_budget(500.0, auto_budget_enabled=True)
+    assert worst == 3000.0
+
+
+def test_gmv_max_worst_case_at_max_settings_is_31x() -> None:
+    """300% step x 10 increases = +3000% additive -> 31x the nominal budget."""
+    worst = gmv_max_worst_case_daily_budget(
+        100.0, auto_budget_enabled=True, increase_percentage=300.0, increase_limit=10)
+    assert worst == 3100.0
+
+
+def test_gmv_max_worst_case_is_additive_not_compounding() -> None:
+    """Each step adds a % of the ORIGINAL budget, not of the already-increased one."""
+    one_step = gmv_max_worst_case_daily_budget(
+        200.0, auto_budget_enabled=True, increase_percentage=50.0, increase_limit=1)
+    two_steps = gmv_max_worst_case_daily_budget(
+        200.0, auto_budget_enabled=True, increase_percentage=50.0, increase_limit=2)
+    # Additive: step size stays constant (100.0 each), not growing off a larger base.
+    assert two_steps - one_step == one_step - 200.0
