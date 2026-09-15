@@ -73,3 +73,16 @@ def test_prepare_call_wiring() -> None:
     assert call["headers"]["x-tts-access-token"] == "TTP_tok"
     assert call["headers"]["content-type"] == "application/json"
     assert call["params"]["sign"] == V1_EXPECTED  # no body, no cipher -> vector 1
+
+
+def test_empty_value_params_excluded_from_signature() -> None:
+    """Confirmed via fudiwei's C# SDK: empty params don't participate in signing.
+    A request with an empty-string param must sign identically to one without it."""
+    with_empty = {"app_key": "29a39d", "timestamp": "1623812664", "page_token": ""}
+    without = {"app_key": "29a39d", "timestamp": "1623812664"}
+    assert sign_request(V1_SECRET, V1_PATH, with_empty) == sign_request(V1_SECRET, V1_PATH, without)
+
+
+def test_prepare_call_strips_empty_params_from_both_query_and_sign() -> None:
+    call = prepare_call("29a39d", V1_SECRET, V1_PATH, params={"page_token": ""})
+    assert "page_token" not in call["params"]

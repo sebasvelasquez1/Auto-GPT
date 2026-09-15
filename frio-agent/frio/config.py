@@ -135,8 +135,11 @@ class Config(BaseSettings):
     image_provider: str = "nano_banana"  # nano_banana | soul | flux | gpt_image
     # TikTok Shop API — custom app, seller in-house (user_type=0). Per the official
     # developer guide, a signed request needs app_key + app_secret + a per-shop
-    # access_token (from the OAuth auth_code exchange) + a refresh_token, and the
-    # shop_cipher identifies the specific shop. Host: open-api.tiktokglobalshop.com.
+    # access_token (7-day default lifetime, from the OAuth auth_code exchange) + a
+    # refresh_token, and the shop_cipher identifies the specific shop — required for
+    # China cross-border shops, OPTIONAL for local shops in US/UK/SEA (verified
+    # 2026-09-15 against TikTok's own "Connecting shops" doc). Host:
+    # open-api.tiktokglobalshop.com.
     tiktok_shop_app_key: str | None = None
     tiktok_shop_app_secret: str | None = None
     tiktok_shop_access_token: str | None = None
