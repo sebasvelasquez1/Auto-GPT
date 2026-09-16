@@ -184,6 +184,51 @@ implementaciones independientes (oficial de TikTok, PHP, TypeScript, C#).
   lo exigiera nativamente, no lo venderían como feature. **Nuestra propia compuerta de
   aprobación sigue siendo la única protección real** — no delegarla a la plataforma.
 
+### ✅ VERIFICADO EN VIVO — 2026-09-16 (primera vez contra el servidor real)
+
+Hasta ahora todo lo de arriba venía de un registro de sondeos de un tercero
+(api-evangelist/tiktok-ads), porque el entorno de build tenía TikTok bloqueado. Desde
+una sesión con salida a internet se ejecutó el flujo real. **Qué se confirmó de primera
+mano** (no leído, ejecutado):
+
+- Los dos endpoints existen y responden `401` con
+  `WWW-Authenticate: Bearer resource_metadata="…"` → sí anuncian RFC 9728.
+- El documento de metadatos del servidor de autorización dice, textual:
+
+  | Campo | Valor real |
+  |---|---|
+  | `authorization_endpoint` | `https://business-api.tiktok.com/portal/mcp-tt4b-authorize` |
+  | `token_endpoint` | `…/open_mcp/tt-ads-mcp-flat/oauth/token` |
+  | `registration_endpoint` | `…/open_mcp/tt-ads-mcp-flat/oauth/register` |
+  | `revocation_endpoint` | `…/open_mcp/tt-ads-mcp-flat/oauth/revoke` |
+  | `code_challenge_methods_supported` | `["S256"]` (PKCE obligatorio) |
+  | `scopes_supported` | `["mcp:tt4b"]` |
+  | `token_endpoint_auth_methods_supported` | `["none"]` |
+
+- **La afirmación clave queda confirmada por ejecución, no por lectura:** el registro
+  dinámico de cliente (RFC 7591) funcionó y TikTok emitió un `client_id` real
+  (`913d5ea1…`) **sin cuenta de developer, sin app registrada y sin empresa**.
+  `token_endpoint_auth_methods: ["none"]` = cliente público, sin `client_secret`.
+
+**Dos desviaciones reales encontradas al ejecutarlo** (ambas corregidas en el código):
+
+1. **El desafío OAuth solo responde a `POST`.** Un `GET` al endpoint MCP devuelve
+   `405 Method Not Allowed` en texto plano, **sin** cabecera `WWW-Authenticate`. Es el
+   transporte "Streamable HTTP" de MCP. Nuestro conector sondeaba con `GET` — por eso
+   falló la primera ejecución real.
+2. **La URL de metadatos no sigue el RFC 8414.** TikTok sirve la forma *path-append*
+   estilo OpenID Connect (`{issuer}/.well-known/oauth-authorization-server`) y
+   devuelve `404` en la forma *path-insert* que el RFC 8414 exige. El código ahora
+   prueba las dos, la observada primero.
+
+**Detalle menor pero útil:** el registro dinámico es **determinista** — dos ejecuciones
+con el mismo `client_name` + `redirect_uris` devolvieron **el mismo `client_id`**, no
+uno nuevo. No genera clientes basura al reintentar.
+
+**Lo que sigue SIN verificar** (y no se puede sin que el usuario apruebe en la UI de
+TikTok): el canje del código por tokens, el `refresh`, y la vida real de 30 días de la
+concesión (ese dato sigue siendo del tercero, no de primera mano).
+
 ---
 
 ## 6. Realidad de practicantes (Reddit/foros — cobertura limitada, honesto al respecto)

@@ -1,8 +1,10 @@
-"""OAuth 2.1 + PKCE builders for the official TikTok Ads MCP server.
+"""OAuth 2.1 + PKCE flow for the official TikTok Ads MCP server.
 
-Only the deterministic, network-free parts are tested here (PKCE crypto, request/URL
-construction) — see tiktok_ads_mcp.py's docstring for why the live discovery/token
-calls are intentionally left as NotImplementedError.
+Network-free tests: PKCE crypto, request/URL construction, and the discovery/token
+parsing logic against realistically-shaped fake responses. Discovery and dynamic
+client registration have ALSO been run for real against TikTok (2026-09-16); two
+regression tests here pin the two deviations that live run exposed (POST-only OAuth
+challenge, OIDC-style metadata URL) so they cannot silently come back.
 """
 
 from __future__ import annotations
@@ -12,6 +14,8 @@ import hashlib
 from urllib.parse import parse_qs, urlparse
 
 import json
+
+import pytest
 
 from frio.config import Config
 from frio.connectors.tiktok_ads_mcp import (
@@ -145,32 +149,99 @@ def test_discover_walks_401_challenge_to_endpoints() -> None:
         "registration_endpoint": f"{AS_URL}/register",
     }).encode()
     fake_get = _fake_get_sequence(
-        (auth.mcp_url(), (401, challenge_header, b"")),
         (RESOURCE_METADATA_URL, (200, {}, resource_meta)),
         (f"{AS_URL}/.well-known/oauth-authorization-server", (200, {}, as_meta)),
     )
-    discovered = auth.discover(http_get=fake_get)
+    fake_probe = lambda url: (401, challenge_header, b"unauthorized")
+    discovered = auth.discover(http_get=fake_get, http_probe=fake_probe)
     assert discovered.authorization_endpoint == f"{AS_URL}/authorize"
     assert discovered.token_endpoint == f"{AS_URL}/token"
     assert discovered.registration_endpoint == f"{AS_URL}/register"
 
 
 def test_discover_raises_clearly_on_unexpected_status() -> None:
-    import pytest
-
     auth = TikTokAdsMcpAuth(config=Config())
-    fake_get = lambda url, headers=None: (200, {}, b"")  # no 401 challenge
+    fake_probe = lambda url: (200, {}, b"")  # no 401 challenge
     with pytest.raises(DiscoveryError, match="expected HTTP 401"):
-        auth.discover(http_get=fake_get)
+        auth.discover(http_probe=fake_probe)
 
 
 def test_discover_raises_on_missing_resource_metadata_header() -> None:
-    import pytest
-
     auth = TikTokAdsMcpAuth(config=Config())
-    fake_get = lambda url, headers=None: (401, {"WWW-Authenticate": "Bearer"}, b"")
+    fake_probe = lambda url: (401, {"WWW-Authenticate": "Bearer"}, b"")
     with pytest.raises(DiscoveryError, match="no resource_metadata"):
-        auth.discover(http_get=fake_get)
+        auth.discover(http_probe=fake_probe)
+
+
+def test_discover_probes_with_post_not_get() -> None:
+    """Regression test for the bug the first LIVE run hit (2026-09-16): TikTok's MCP
+    endpoint answers the OAuth challenge only to a POST. A GET gets a bare
+    "405 Method Not Allowed" with NO WWW-Authenticate header, so a GET-based probe
+    can never discover anything. Asserts the shipped default probe uses POST."""
+    import urllib.request
+
+    from frio.connectors.tiktok_ads_mcp import _http_probe_challenge
+
+
+    seen = {}
+
+    def fake_urlopen(req, timeout=None):
+        seen["method"] = req.get_method()
+        seen["accept"] = req.get_header("Accept")
+        raise AssertionError("stop before the network")
+
+    original = urllib.request.urlopen
+    urllib.request.urlopen = fake_urlopen
+    try:
+        with pytest.raises(AssertionError, match="stop before the network"):
+            _http_probe_challenge("https://business-api.tiktok.com/open_mcp/x")
+    finally:
+        urllib.request.urlopen = original
+    assert seen["method"] == "POST"
+    assert "text/event-stream" in seen["accept"]
+
+
+def test_discover_reports_405_body_when_challenge_is_refused() -> None:
+    """The live failure mode, verbatim: the error has to name the real status and
+    body so the next person sees what TikTok actually said."""
+    auth = TikTokAdsMcpAuth(config=Config())
+    fake_probe = lambda url: (405, {}, b"Method Not Allowed")
+    with pytest.raises(DiscoveryError) as exc:
+        auth.discover(http_probe=fake_probe)
+    assert "405" in str(exc.value)
+    assert "Method Not Allowed" in str(exc.value)
+
+
+def test_as_metadata_urls_try_append_form_first_then_rfc8414() -> None:
+    """TikTok serves the OIDC-style append form and 404s the RFC 8414 insert form
+    (both probed live, 2026-09-16), so append must be tried first — but the RFC form
+    stays as a fallback so a spec-compliant server also works."""
+    from frio.connectors.tiktok_ads_mcp import _as_metadata_urls
+
+    urls = _as_metadata_urls("https://business-api.tiktok.com/open_mcp/tt-ads-mcp-flat/oauth")
+    assert urls == [
+        "https://business-api.tiktok.com/open_mcp/tt-ads-mcp-flat/oauth"
+        "/.well-known/oauth-authorization-server",
+        "https://business-api.tiktok.com/.well-known/oauth-authorization-server"
+        "/open_mcp/tt-ads-mcp-flat/oauth",
+    ]
+
+
+def test_discover_falls_back_to_rfc8414_url_when_append_form_404s() -> None:
+    auth = TikTokAdsMcpAuth(config=Config())
+    challenge_header = {"WWW-Authenticate": f'Bearer resource_metadata="{RESOURCE_METADATA_URL}"'}
+    resource_meta = json.dumps({"authorization_servers": [AS_URL]}).encode()
+    as_meta = json.dumps({"authorization_endpoint": f"{AS_URL}/authorize",
+                          "token_endpoint": f"{AS_URL}/token"}).encode()
+    rfc8414_url = ("https://business-api.tiktok.com/.well-known/"
+                   "oauth-authorization-server/portal/oauth")
+    fake_get = _fake_get_sequence(
+        (RESOURCE_METADATA_URL, (200, {}, resource_meta)),
+        (f"{AS_URL}/.well-known/oauth-authorization-server", (404, {}, b"not found")),
+        (rfc8414_url, (200, {}, as_meta)),
+    )
+    discovered = auth.discover(http_get=fake_get, http_probe=lambda url: (401, challenge_header, b""))
+    assert discovered.token_endpoint == f"{AS_URL}/token"
 
 
 def test_register_client_stores_client_id_in_config() -> None:
@@ -257,3 +328,67 @@ def test_run_request_wraps_connection_failure_in_discovery_error() -> None:
             _run_request(_FakeRequest())
     finally:
         mod.urllib.request.urlopen = original
+
+
+# --- Pending-authorization handoff (human-in-the-middle between the two commands) ---
+
+def test_parse_redirect_url_extracts_code_and_state() -> None:
+    from frio.connectors.tiktok_ads_mcp import parse_redirect_url
+
+    code, state = parse_redirect_url(
+        "  https://frio.local/callback?code=abc123&state=xyz789  ")
+    assert (code, state) == ("abc123", "xyz789")
+
+
+def test_parse_redirect_url_surfaces_tiktok_error_instead_of_missing_code() -> None:
+    from frio.connectors.tiktok_ads_mcp import PendingAuthError, parse_redirect_url
+
+    with pytest.raises(PendingAuthError, match="access_denied.*user refused"):
+        parse_redirect_url("https://frio.local/callback?error=access_denied"
+                           "&error_description=user+refused")
+
+
+def test_parse_redirect_url_rejects_a_url_with_no_code() -> None:
+    from frio.connectors.tiktok_ads_mcp import PendingAuthError, parse_redirect_url
+
+    with pytest.raises(PendingAuthError, match="no 'code' parameter"):
+        parse_redirect_url("https://frio.local/callback")
+
+
+def test_verify_state_rejects_mismatch_and_missing_state() -> None:
+    """The CSRF guard is the whole point of state — a missing one must NOT pass."""
+    from frio.connectors.tiktok_ads_mcp import PendingAuthError, verify_state
+
+    verify_state("s", "s")  # matching state is accepted
+    with pytest.raises(PendingAuthError, match="state mismatch"):
+        verify_state("other", "s")
+    with pytest.raises(PendingAuthError, match="state mismatch"):
+        verify_state(None, "s")
+
+
+def test_pending_auth_round_trips_and_is_owner_only(tmp_path) -> None:
+    """It holds a PKCE verifier (a secret), so the file must not be world-readable."""
+    import stat
+
+    from frio.connectors.tiktok_ads_mcp import load_pending_auth, save_pending_auth
+
+    target = tmp_path / "pending.json"
+    data = {"client_id": "cid", "verifier": "v", "state": "s",
+            "redirect_uri": "https://frio.local/callback", "endpoint": "flat"}
+    save_pending_auth(data, path=str(target))
+    assert load_pending_auth(path=str(target)) == data
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+
+
+def test_load_pending_auth_explains_itself_when_absent_or_incomplete(tmp_path) -> None:
+    from frio.connectors.tiktok_ads_mcp import (
+        PendingAuthError, load_pending_auth, save_pending_auth,
+    )
+
+    with pytest.raises(PendingAuthError, match="run `frio ads mcp-authorize` first"):
+        load_pending_auth(path=str(tmp_path / "nope.json"))
+
+    partial = tmp_path / "partial.json"
+    save_pending_auth({"client_id": "cid"}, path=str(partial))
+    with pytest.raises(PendingAuthError, match="missing verifier, state, redirect_uri"):
+        load_pending_auth(path=str(partial))

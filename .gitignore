@@ -160,3 +160,4 @@ openai/
 
 # news
 CURRENT_BULLETIN.md
+.frio-mcp-auth.json

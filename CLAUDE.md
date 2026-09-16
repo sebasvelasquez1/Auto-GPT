@@ -85,6 +85,13 @@ Hallazgos de mercado van a `frio-agent/knowledge/investigacion/`.
 - Dashboard = private login web app (IntoSpirit); headline = per-product verdict
   (sirve/no sirve) with P&L. Deploy-ready for Render (DEPLOY.md). SaaS multi-tenant
   subscription = explicit ROADMAP, not built (fase inicial: IntoSpirit first).
+- TikTok Ads MCP connection — discovery + dynamic client registration VERIFIED LIVE
+  against TikTok (2026-09-16). No developer account or company needed: TikTok issued a
+  real client_id to an unregistered public client. Two live-only bugs found and fixed
+  (OAuth challenge is POST-only; metadata URL is the OIDC append form, not RFC 8414).
+  Remaining step is HUMAN, not technical: the seller opens the approval link and pastes
+  the returned address into `frio ads mcp-exchange --redirect-url='…'`. Details:
+  knowledge/investigacion/2026-09-conexion-tiktok-shop-ads-consolidado.md §5.
 - PENDING from user: TikTok Shop developer credentials (promised; ask again after
   current tasks) → wires the real catalog + sales.
 

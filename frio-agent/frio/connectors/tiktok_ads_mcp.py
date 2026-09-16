@@ -5,17 +5,26 @@ requires NO developer account and NO registered app — the single lowest-fricti
 path for a seller without a registered company. See
 knowledge/investigacion/2026-09-conexion-tiktok-shop-ads-consolidado.md §5.
 
-Confirmed (third-party live-probe ledger, api-evangelist/tiktok-ads, 2026-08-13 /
-re-probed 2026-09-11 — NOT read from TikTok's own docs, which were unreachable):
+CONFIRMED FIRST-HAND against TikTok's live server (2026-09-16, this repo). Previously
+this rested on a third-party probe ledger (api-evangelist/tiktok-ads, 2026-08-13 /
+re-probed 2026-09-11) because TikTok was unreachable from the build environment; it is
+now verified directly. What the real server returns:
   - Endpoints: business-api.tiktok.com/open_mcp/tt-ads-mcp-flat (~400 tools) and
-    .../tt-ads-mcp-layer (~40 tools, progressive disclosure).
-  - Auth: OAuth 2.1, authorization-code + PKCE (S256 required), dynamic client
-    registration (RFC 7591), scope "mcp:tt4b", token_endpoint_auth_methods: none
-    (public client — no client_secret, consistent with "no developer app needed").
-  - Both endpoints answered HTTP 401 with a
-    ``WWW-Authenticate: Bearer resource_metadata="..."`` challenge — i.e. the server
-    itself advertises RFC 9728 Protected Resource Metadata.
-  - Grant lifetime: 30 days, then reauthorize.
+    .../tt-ads-mcp-layer (~40 tools, progressive disclosure). BOTH answer HTTP 401
+    with ``WWW-Authenticate: Bearer resource_metadata="..."`` — but only to a POST
+    (a GET gets a bare 405, no challenge header; see ``_http_probe_challenge``).
+  - Its authorization server metadata advertises, verbatim:
+      authorization_endpoint  https://business-api.tiktok.com/portal/mcp-tt4b-authorize
+      token_endpoint          .../open_mcp/tt-ads-mcp-flat/oauth/token
+      registration_endpoint   .../open_mcp/tt-ads-mcp-flat/oauth/register
+      revocation_endpoint     .../open_mcp/tt-ads-mcp-flat/oauth/revoke
+      grant_types             authorization_code, refresh_token
+      code_challenge_methods  S256 (PKCE required)
+      scopes_supported        mcp:tt4b
+      token_endpoint_auth_methods_supported: ["none"]  <- public client, no
+        client_secret: first-hand support for "no developer account needed".
+  - Grant lifetime: 30 days, then reauthorize (from the third-party ledger; NOT yet
+    confirmed first-hand — needs a completed authorization to observe).
 
 DELIBERATE DESIGN CHOICE — do not hardcode TikTok's endpoint paths as ground truth.
 The third-party probe found specific paths (``/portal/mcp-tt4b-authorize`` etc.), but
@@ -29,16 +38,14 @@ guessing paths — it is protocol-correct regardless of what TikTok's current pa
 and matches the "no inventar" project rule better than repeating a third-party guess.
 
 Status (2026-09-16): the FULL flow is implemented — PKCE, dynamic client registration,
-RFC 9728/8414 discovery, code exchange, and refresh. The request-building and
-response-parsing logic is unit-tested against realistically-shaped fake HTTP responses
-(tests/test_tiktok_ads_mcp.py). What is NOT yet verified is a live round-trip against
-TikTok's real server: this environment's egress proxy blocks business-api.tiktok.com
-outright (confirmed via direct curl -> "policy denial", not a flaky failure — see
-knowledge/investigacion/). Every network call below takes an injectable http_get/
-http_post so it can be run for real from a network that can reach TikTok (e.g. the
-user's own machine) via ``frio ads mcp-authorize`` — if TikTok's real response shape
-ever differs from the RFCs, the code raises ``DiscoveryError`` with the actual body
-rather than silently misparsing.
+RFC 9728/8414 discovery, code exchange, and refresh. Discovery and dynamic client
+registration are now VERIFIED LIVE against TikTok. What remains unverified is only
+what needs the seller to actually click "approve" in TikTok's UI: the code exchange
+and the refresh (their request/response handling is unit-tested against
+realistically-shaped fake responses in tests/test_tiktok_ads_mcp.py). Every network
+call below takes an injectable http_get/http_post/http_probe, and any unexpected
+response shape raises ``DiscoveryError`` carrying the real body rather than silently
+misparsing.
 """
 
 from __future__ import annotations
@@ -46,6 +53,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import pathlib
 import re
 import secrets
 import urllib.error
@@ -56,11 +64,8 @@ from urllib.parse import urlencode
 
 from ..config import Config
 
-# Injectable so tests can verify the parsing logic against fake responses without a
-# live network call — this environment's egress proxy blocks business-api.tiktok.com
-# outright (confirmed via direct curl, "policy denial", not a flaky failure), so the
-# request/response PARSING is what's actually verified here; the live round-trip
-# needs to run from a network that can reach TikTok (e.g. the user's own machine).
+# Injectable so tests can verify the parsing logic against fake responses without
+# hitting the network (and so a live failure can be reproduced deterministically).
 HttpResponse = tuple[int, dict, bytes]
 
 
@@ -104,6 +109,42 @@ def _http_post_form(url: str, data: dict, headers: dict | None = None) -> HttpRe
 class DiscoveryError(RuntimeError):
     """The MCP server's response didn't match the expected RFC 9728/8414 shape."""
 
+
+# The MCP endpoint speaks MCP's Streamable HTTP transport, so it only answers the
+# OAuth challenge to a POST. A GET gets a bare "405 Method Not Allowed" with no
+# WWW-Authenticate header at all — confirmed live against TikTok on 2026-09-16, and
+# the exact reason the first real run of `frio ads mcp-authorize` failed.
+_PROBE_BODY = {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+               "params": {"protocolVersion": "2025-06-18", "capabilities": {},
+                          "clientInfo": {"name": "frio", "version": "0.0.1"}}}
+
+
+def _http_probe_challenge(url: str) -> HttpResponse:
+    """Elicit the RFC 9728 ``WWW-Authenticate`` challenge from an MCP endpoint.
+
+    The request is expected to FAIL with 401 — it carries no token. Its only job is
+    to make the server name where its OAuth metadata lives.
+    """
+    return _http_post_json(url, _PROBE_BODY,
+                           headers={"Accept": "application/json, text/event-stream"})
+
+
+def _as_metadata_urls(issuer: str) -> list[str]:
+    """Candidate metadata URLs for an authorization server, best-confirmed first.
+
+    RFC 8414 mandates inserting ``/.well-known/oauth-authorization-server`` between
+    host and path; TikTok instead serves the OpenID-Connect-style APPEND form and
+    404s the RFC one (both probed live, 2026-09-16). Try append first because that is
+    the one actually observed working, then the RFC form so this stays correct against
+    a spec-compliant server too.
+    """
+    issuer = issuer.rstrip("/")
+    parts = urllib.parse.urlsplit(issuer)
+    rfc8414 = urllib.parse.urlunsplit((
+        parts.scheme, parts.netloc,
+        f"/.well-known/oauth-authorization-server{parts.path}", "", ""))
+    return [f"{issuer}/.well-known/oauth-authorization-server", rfc8414]
+
 MCP_ENDPOINTS = {
     "flat": "https://business-api.tiktok.com/open_mcp/tt-ads-mcp-flat",
     "layered": "https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer",
@@ -129,6 +170,81 @@ def generate_pkce_pair() -> PkcePair:
 def generate_state() -> str:
     """CSRF token for the authorization request — verify it matches on callback."""
     return secrets.token_urlsafe(24)
+
+
+# --- Pending-authorization handoff -------------------------------------------------
+# The authorization flow is necessarily split across two commands with a human in the
+# middle (they open TikTok and approve), so the PKCE verifier and CSRF state have to
+# survive between them. Printing them for the seller to copy back, as the first
+# version did, is both unusable (86-char secrets) and unsafe (nothing verified the
+# state on return). They go in a 0600 file next to the project instead.
+PENDING_AUTH_FILE = ".frio-mcp-auth.json"
+
+
+class PendingAuthError(RuntimeError):
+    """No usable pending authorization was found on disk."""
+
+
+def save_pending_auth(state_data: dict, *, path: str = PENDING_AUTH_FILE) -> str:
+    """Persist the in-flight authorization. Contains a PKCE verifier — a short-lived
+    secret — so the file is written owner-read/write only and is gitignored."""
+    target = pathlib.Path(path)
+    target.write_text(json.dumps(state_data, indent=2))
+    target.chmod(0o600)
+    return str(target)
+
+
+def load_pending_auth(*, path: str = PENDING_AUTH_FILE) -> dict:
+    target = pathlib.Path(path)
+    if not target.exists():
+        raise PendingAuthError(
+            f"no pending authorization found at {path} — run "
+            f"`frio ads mcp-authorize` first (it creates this file)")
+    data = json.loads(target.read_text())
+    missing = [k for k in ("client_id", "verifier", "state", "redirect_uri")
+               if not data.get(k)]
+    if missing:
+        raise PendingAuthError(
+            f"{path} is missing {', '.join(missing)} — re-run `frio ads mcp-authorize`")
+    return data
+
+
+def parse_redirect_url(url: str) -> tuple[str, str | None]:
+    """Pull (code, state) out of the URL TikTok lands the seller on.
+
+    Exists so the seller can paste the whole address bar instead of hand-extracting a
+    query parameter. The redirect target is a placeholder host that does not resolve,
+    so their browser WILL show a "can't reach this site" error — the address bar still
+    holds the code, which is all that matters. An ``error=`` response is surfaced as
+    such rather than read as a missing code.
+    """
+    parsed = urllib.parse.urlsplit(url.strip())
+    params = urllib.parse.parse_qs(parsed.query)
+    if "error" in params:
+        detail = params.get("error_description", [""])[0]
+        raise PendingAuthError(
+            f"TikTok returned an error instead of a code: {params['error'][0]}"
+            + (f" — {detail}" if detail else ""))
+    codes = params.get("code")
+    if not codes:
+        raise PendingAuthError(
+            "no 'code' parameter in that URL — paste the FULL address your browser "
+            "ended up on after approving (it looks like "
+            "https://frio.local/callback?code=...&state=...)")
+    states = params.get("state")
+    return codes[0], states[0] if states else None
+
+
+def verify_state(returned: str | None, expected: str) -> None:
+    """Reject a callback whose state doesn't match the one we generated (CSRF guard).
+
+    A missing state is also a failure: silently accepting one would defeat the guard.
+    """
+    if returned != expected:
+        raise PendingAuthError(
+            "state mismatch — this callback does not belong to the authorization "
+            "Frio started, so it is being rejected. Run `frio ads mcp-authorize` "
+            "again and use the fresh link.")
 
 
 @dataclass
@@ -211,22 +327,25 @@ class TikTokAdsMcpAuth:
                 f"authorization_servers -> /.well-known/oauth-authorization-server)",
                 self._pending_pkce, self._pending_state)
 
-    def discover(self, *, http_get=_http_get) -> DiscoveredEndpoints:
+    def discover(self, *, http_get=_http_get,
+                 http_probe=_http_probe_challenge) -> DiscoveredEndpoints:
         """RFC 9728 + RFC 8414 discovery: fetch the 401 challenge's resource_metadata,
         then the authorization server's own metadata document.
 
-        Live-network status: written and unit-tested against mocked responses shaped
-        exactly like the RFCs specify, but NEVER exercised against the real TikTok
-        server — this environment's egress proxy blocks business-api.tiktok.com
-        outright (confirmed via direct curl: "policy denial", not a flaky failure).
-        Run this from a network that can actually reach TikTok (your own machine) for
-        the first real test; if TikTok's real response shape differs from the RFCs,
-        this will raise ``DiscoveryError`` with the actual body, not silently misparse.
+        Live-network status: VERIFIED against TikTok's real server on 2026-09-16 —
+        the full chain (401 challenge -> protected resource metadata ->
+        authorization server metadata) returns the endpoints below. Two real
+        deviations from a by-the-book RFC client were found and are handled:
+        the challenge needs a POST (see ``_http_probe_challenge``) and the metadata
+        document lives at the append-form URL (see ``_as_metadata_urls``).
+        If TikTok's response shape ever changes, this raises ``DiscoveryError``
+        with the actual body rather than silently misparsing.
         """
-        status, headers, _ = http_get(self.mcp_url())
+        status, headers, probe_body = http_probe(self.mcp_url())
         if status != 401:
             raise DiscoveryError(
-                f"expected HTTP 401 (OAuth challenge) from {self.mcp_url()}, got {status}")
+                f"expected HTTP 401 (OAuth challenge) from {self.mcp_url()}, got "
+                f"{status}: {bytes(probe_body)[:200]!r}")
         challenge = headers.get("WWW-Authenticate") or headers.get("www-authenticate")
         match = re.search(r'resource_metadata="([^"]+)"', challenge or "")
         if not match:
@@ -239,10 +358,15 @@ class TikTokAdsMcpAuth:
         servers = resource_meta.get("authorization_servers") or []
         if not servers:
             raise DiscoveryError(f"no authorization_servers in {resource_meta!r}")
-        as_status, _, as_body = http_get(
-            f"{servers[0].rstrip('/')}/.well-known/oauth-authorization-server")
-        if as_status != 200:
-            raise DiscoveryError(f"authorization server metadata fetch failed: HTTP {as_status}")
+        attempts = []
+        for candidate in _as_metadata_urls(servers[0]):
+            as_status, _, as_body = http_get(candidate)
+            if as_status == 200:
+                break
+            attempts.append(f"HTTP {as_status} from {candidate}")
+        else:
+            raise DiscoveryError("authorization server metadata fetch failed: "
+                                 + "; ".join(attempts))
         as_meta = json.loads(as_body)
         try:
             return DiscoveredEndpoints(

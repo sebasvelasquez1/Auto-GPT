@@ -396,15 +396,17 @@ def ads_mcp_authorize(
              "callback receiver exists)"),
     endpoint: str = typer.Option("flat", help="'flat' (~400 tools) or 'layered' (~40)"),
 ) -> None:
-    """Connect via TikTok's official Ads MCP server — no developer account or
-    company needed (research 2026-09-15). Discovers TikTok's real OAuth endpoints,
-    registers Frío as a client, and prints the link to open + approve.
+    """Connect via TikTok's official Ads MCP server — no developer account or company
+    needed (verified live 2026-09-16: TikTok issued a client_id to an unregistered
+    public client). Discovers TikTok's real OAuth endpoints, registers Frío as a
+    client, and prints the link for the seller to open and approve.
 
-    Needs a network that can reach business-api.tiktok.com — this environment's
-    egress proxy blocks it, so run this from a machine with normal internet access."""
+    Needs a network that can reach business-api.tiktok.com. Nothing here can spend
+    money: this only obtains permission to READ and propose. Every spend action stays
+    behind its own gate, cap and human approval."""
     from .config import load_config
     from .connectors.tiktok_ads_mcp import (
-        DiscoveryError, TikTokAdsMcpAuth, build_authorization_url,
+        DiscoveryError, TikTokAdsMcpAuth, build_authorization_url, save_pending_auth,
     )
 
     config = load_config()
@@ -422,48 +424,79 @@ def ads_mcp_authorize(
 
     url = build_authorization_url(discovered.authorization_endpoint, client_id=client_id,
                                   redirect_uri=redirect_uri, state=state, pkce=pkce)
-    typer.echo(f"\n💾 Save to your .env so the next step can find it:\n"
-               f"  FRIO_TIKTOK_ADS_MCP_CLIENT_ID={client_id}\n")
-    typer.echo(f"👉 Open this link, log into TikTok, and approve:\n\n  {url}\n")
-    typer.echo(f"Save the PKCE verifier too (needed for the next step, not shown "
-               f"again):\n  {pkce.verifier}\n")
-    typer.echo("Then note the 'code' TikTok puts on the redirect URL, and run:\n"
-               f"  frio ads mcp-exchange --code=<code> --verifier={pkce.verifier!r} "
-               f"--redirect-uri={redirect_uri!r}")
+    saved_to = save_pending_auth({
+        "client_id": client_id, "verifier": pkce.verifier, "state": state,
+        "redirect_uri": redirect_uri, "endpoint": endpoint,
+        "authorization_endpoint": discovered.authorization_endpoint,
+        "token_endpoint": discovered.token_endpoint,
+    })
+    typer.echo(f"\n✅ TikTok registered Frío as a client: {client_id}")
+    typer.echo(f"   (saved to {saved_to}, along with the one-time secrets the next "
+               f"step needs — nothing to copy by hand)\n")
+    typer.echo(f"👉 STEP 1 — open this link, log into TikTok, and approve:\n\n  {url}\n")
+    typer.echo("👉 STEP 2 — your browser will then fail to load a page. That is "
+               "EXPECTED:\n"
+               f"   {redirect_uri} is a placeholder that does not exist. The code we "
+               "need\n"
+               "   is in the address bar. Copy that whole address and run:\n\n"
+               "     frio ads mcp-exchange --redirect-url='<paste the whole address>'\n")
 
 
 @ads_app.command("mcp-exchange")
 def ads_mcp_exchange(
-    code: str = typer.Option(..., help="The 'code' from the redirect URL"),
-    verifier: str = typer.Option(..., help="The PKCE verifier printed by mcp-authorize"),
-    redirect_uri: str = typer.Option("https://frio.local/callback"),
-    endpoint: str = typer.Option("flat"),
+    redirect_url: str = typer.Option(
+        "", help="Paste the WHOLE address your browser landed on after approving"),
+    code: str = typer.Option("", help="Just the 'code' value, if you prefer"),
 ) -> None:
     """Step 2: exchange the authorization code for real tokens, finishing the
-    connection started by `frio ads mcp-authorize`."""
-    from .config import load_config
-    from .connectors.tiktok_ads_mcp import DiscoveryError, PkcePair, TikTokAdsMcpAuth
+    connection started by `frio ads mcp-authorize`.
 
-    config = load_config()
-    if not config.tiktok_ads_mcp_client_id:
-        typer.echo("⛔ No client_id found — set FRIO_TIKTOK_ADS_MCP_CLIENT_ID in .env "
-                   "(printed by `frio ads mcp-authorize`) first.")
+    Reads the PKCE verifier, state and client_id from the file mcp-authorize wrote,
+    so there is nothing to copy by hand but the address TikTok sent you to.
+    """
+    from .config import load_config
+    from .connectors.tiktok_ads_mcp import (
+        DiscoveryError, PendingAuthError, PkcePair, TikTokAdsMcpAuth,
+        load_pending_auth, parse_redirect_url, verify_state,
+    )
+
+    if not redirect_url and not code:
+        typer.echo("⛔ Give me either --redirect-url='<the whole address>' (easiest) "
+                   "or --code=<value>.")
         raise typer.Exit(1)
 
-    auth = TikTokAdsMcpAuth(config=config, endpoint=endpoint)
-    auth._pending_pkce = PkcePair(verifier=verifier, challenge="")  # challenge unused here
+    try:
+        pending = load_pending_auth()
+        if redirect_url:
+            code, returned_state = parse_redirect_url(redirect_url)
+            verify_state(returned_state, pending["state"])
+    except PendingAuthError as exc:
+        typer.echo(f"⛔ {exc}")
+        raise typer.Exit(1)
+
+    config = load_config()
+    auth = TikTokAdsMcpAuth(config=config, endpoint=pending.get("endpoint", "flat"))
+    # challenge is not sent at exchange time — only the verifier is (RFC 7636 §4.5).
+    auth._pending_pkce = PkcePair(verifier=pending["verifier"], challenge="")
     try:
         discovered = auth.discover()
-        tokens = auth.exchange_code(discovered, client_id=config.tiktok_ads_mcp_client_id,
-                                    code=code, redirect_uri=redirect_uri)
+        tokens = auth.exchange_code(discovered, client_id=pending["client_id"],
+                                    code=code, redirect_uri=pending["redirect_uri"])
     except DiscoveryError as exc:
         typer.echo(f"⛔ {exc}")
         raise typer.Exit(1)
 
-    typer.echo("✅ Connected. Save these to your .env:\n"
+    typer.echo("✅ Connected to TikTok Ads (read + propose only — no spend is enabled "
+               "by this).")
+    typer.echo("\nSave these in your .env file. This container is temporary, so if you "
+               "\nlose them you just re-run the two commands:\n"
+               f"  FRIO_TIKTOK_ADS_MCP_CLIENT_ID={pending['client_id']}\n"
                f"  FRIO_TIKTOK_ADS_MCP_ACCESS_TOKEN={tokens['access_token']}")
     if "refresh_token" in tokens:
         typer.echo(f"  FRIO_TIKTOK_ADS_MCP_REFRESH_TOKEN={tokens['refresh_token']}")
+    if "expires_in" in tokens:
+        typer.echo(f"\n(TikTok says this access token lasts {tokens['expires_in']} "
+                   f"seconds; the refresh token renews it.)")
 
 
 @ads_app.command("launch")
