@@ -92,6 +92,14 @@ Hallazgos de mercado van a `frio-agent/knowledge/investigacion/`.
   Remaining step is HUMAN, not technical: the seller opens the approval link and pastes
   the returned address into `frio ads mcp-exchange --redirect-url='…'`. Details:
   knowledge/investigacion/2026-09-conexion-tiktok-shop-ads-consolidado.md §5.
+- ⚠️ ACCOUNT TOPOLOGY (user-declared 2026-09-16, see knowledge/CUENTAS-Y-JURISDICCION.md):
+  TikTok Shop is US-only for this seller, whose personal TikTok is Colombian. So there
+  are THREE separate identities — personal TikTok (Colombia, useless here), the US
+  company's Shop/Seller Center, and the US company's Ads Manager. Authorizing with the
+  personal account is THE mistake to avoid. An MCP grant covers every ad account that
+  login can reach, so `FRIO_TIKTOK_ADS_ADVERTISER_ID` pins the one allowed account and
+  `guardrails.require_pinned_ad_account` RAISES (never a soft verdict) on a mismatch or
+  on any live action with no pin.
 - PENDING from user: TikTok Shop developer credentials (promised; ask again after
   current tasks) → wires the real catalog + sales.
 

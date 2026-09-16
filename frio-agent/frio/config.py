@@ -150,6 +150,13 @@ class Config(BaseSettings):
     # TikTok Ads — official MCP server (no developer account/app needed; see
     # connectors/tiktok_ads_mcp.py). OAuth 2.1 + PKCE, dynamic client registration —
     # client_id is issued at registration time, not chosen by us.
+    # The ONE TikTok ad account Frio may operate on. Pinned deliberately: the seller's
+    # TikTok login can have access to SEVERAL ad accounts (this project's owner has a
+    # personal Colombian account AND a separate US-company account, because TikTok Shop
+    # is US-only for them), and an MCP grant covers whatever that login can see. Without
+    # a pin, "spend on the right account" would rest on nothing but luck.
+    tiktok_ads_advertiser_id: str | None = None
+
     tiktok_ads_mcp_client_id: str | None = None
     tiktok_ads_mcp_access_token: str | None = None
     tiktok_ads_mcp_refresh_token: str | None = None

@@ -117,6 +117,42 @@ def check_print_black(text: str) -> GuardrailVerdict:
     return GuardrailVerdict(True, [])
 
 
+class WrongAdAccountError(RuntimeError):
+    """An ads action targeted an account other than the single pinned one."""
+
+
+def require_pinned_ad_account(target: str | None, *, pinned: str | None,
+                              live: bool) -> str | None:
+    """Refuse any live ads action that is not on the one pinned ad account.
+
+    Why this RAISES instead of returning a ``GuardrailVerdict`` like everything else in
+    this module: a verdict can be read and ignored by a careless caller. Spending on the
+    wrong ad account is not a soft quality signal — it is real money in the wrong place,
+    and the seller here genuinely has more than one account reachable from one login
+    (personal Colombia + the US company that owns the Shop). So it must be impossible to
+    proceed past, not merely inadvisable.
+
+    Offline stays unblocked on purpose (project rule: the pipeline always runs with
+    fixtures), but an explicit mismatch is rejected even offline, so a mis-wiring shows
+    up in tests instead of on the first live run.
+    """
+    if pinned and target and target != pinned:
+        raise WrongAdAccountError(
+            f"refusing to act on ad account {target!r}: Frio is pinned to {pinned!r}. "
+            f"If the pin is wrong, change FRIO_TIKTOK_ADS_ADVERTISER_ID deliberately — "
+            f"do not pass a different account at the call site.")
+    if not live:
+        return target or pinned
+    if not pinned:
+        raise WrongAdAccountError(
+            "refusing a LIVE ads action with no pinned ad account. Set "
+            "FRIO_TIKTOK_ADS_ADVERTISER_ID to the one account Frio may operate on. "
+            "Your TikTok login can reach several ad accounts and this token covers all "
+            "of them, so without the pin there is nothing stopping a spend landing on "
+            "the wrong one.")
+    return pinned
+
+
 def agent_user_agent(version: str = "0.1") -> str:
     """Self-identify as an automated agent at the transport layer.
 
