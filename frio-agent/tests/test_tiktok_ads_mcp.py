@@ -11,11 +11,13 @@ import base64
 import hashlib
 from urllib.parse import parse_qs, urlparse
 
+import json
+
 from frio.config import Config
 from frio.connectors.tiktok_ads_mcp import (
-    MCP_ENDPOINTS, SCOPE, TikTokAdsMcpAuth, build_authorization_url,
-    build_refresh_request, build_registration_request, build_token_exchange_request,
-    generate_pkce_pair, generate_state,
+    DiscoveredEndpoints, DiscoveryError, MCP_ENDPOINTS, SCOPE, TikTokAdsMcpAuth,
+    build_authorization_url, build_refresh_request, build_registration_request,
+    build_token_exchange_request, generate_pkce_pair, generate_state,
 )
 
 
@@ -109,3 +111,149 @@ def test_exchange_code_requires_prior_authorization_start() -> None:
     auth = TikTokAdsMcpAuth(config=Config())
     with pytest.raises(RuntimeError, match="start_authorization"):
         auth.exchange_code(None, client_id="c", code="x", redirect_uri="r")
+
+
+# --- discover() / register_client() / exchange_code() / refresh() -----------------
+# These verify the RFC 9728/8414/7591 PARSING logic against realistically-shaped fake
+# responses (see tiktok_ads_mcp.py's module docstring for why a live call against
+# TikTok's real server isn't possible from this environment).
+
+RESOURCE_METADATA_URL = "https://business-api.tiktok.com/.well-known/oauth-protected-resource"
+AS_URL = "https://business-api.tiktok.com/portal/oauth"
+
+
+def _fake_get_sequence(*responses):
+    """Returns a callable that yields each response in order, by URL."""
+    calls = list(responses)
+
+    def _get(url, headers=None):
+        assert calls, f"unexpected extra GET to {url}"
+        expected_url, response = calls.pop(0)
+        assert url == expected_url, f"expected GET {expected_url}, got {url}"
+        return response
+
+    return _get
+
+
+def test_discover_walks_401_challenge_to_endpoints() -> None:
+    auth = TikTokAdsMcpAuth(config=Config())
+    challenge_header = {"WWW-Authenticate": f'Bearer resource_metadata="{RESOURCE_METADATA_URL}"'}
+    resource_meta = json.dumps({"authorization_servers": [AS_URL]}).encode()
+    as_meta = json.dumps({
+        "authorization_endpoint": f"{AS_URL}/authorize",
+        "token_endpoint": f"{AS_URL}/token",
+        "registration_endpoint": f"{AS_URL}/register",
+    }).encode()
+    fake_get = _fake_get_sequence(
+        (auth.mcp_url(), (401, challenge_header, b"")),
+        (RESOURCE_METADATA_URL, (200, {}, resource_meta)),
+        (f"{AS_URL}/.well-known/oauth-authorization-server", (200, {}, as_meta)),
+    )
+    discovered = auth.discover(http_get=fake_get)
+    assert discovered.authorization_endpoint == f"{AS_URL}/authorize"
+    assert discovered.token_endpoint == f"{AS_URL}/token"
+    assert discovered.registration_endpoint == f"{AS_URL}/register"
+
+
+def test_discover_raises_clearly_on_unexpected_status() -> None:
+    import pytest
+
+    auth = TikTokAdsMcpAuth(config=Config())
+    fake_get = lambda url, headers=None: (200, {}, b"")  # no 401 challenge
+    with pytest.raises(DiscoveryError, match="expected HTTP 401"):
+        auth.discover(http_get=fake_get)
+
+
+def test_discover_raises_on_missing_resource_metadata_header() -> None:
+    import pytest
+
+    auth = TikTokAdsMcpAuth(config=Config())
+    fake_get = lambda url, headers=None: (401, {"WWW-Authenticate": "Bearer"}, b"")
+    with pytest.raises(DiscoveryError, match="no resource_metadata"):
+        auth.discover(http_get=fake_get)
+
+
+def test_register_client_stores_client_id_in_config() -> None:
+    discovered = DiscoveredEndpoints(
+        authorization_endpoint=f"{AS_URL}/authorize", token_endpoint=f"{AS_URL}/token",
+        registration_endpoint=f"{AS_URL}/register")
+    cfg = Config()
+    auth = TikTokAdsMcpAuth(config=cfg)
+    fake_post = lambda url, payload, headers=None: (
+        201, {}, json.dumps({"client_id": "new-client-123"}).encode())
+    client_id = auth.register_client(discovered, ["https://frio.local/callback"],
+                                     http_post=fake_post)
+    assert client_id == "new-client-123"
+    assert cfg.tiktok_ads_mcp_client_id == "new-client-123"
+
+
+def test_register_client_requires_registration_endpoint() -> None:
+    import pytest
+
+    discovered = DiscoveredEndpoints(
+        authorization_endpoint="x", token_endpoint="y", registration_endpoint=None)
+    auth = TikTokAdsMcpAuth(config=Config())
+    with pytest.raises(DiscoveryError, match="registration_endpoint"):
+        auth.register_client(discovered, ["https://frio.local/callback"])
+
+
+def test_exchange_code_stores_tokens_in_config() -> None:
+    discovered = DiscoveredEndpoints(
+        authorization_endpoint=f"{AS_URL}/authorize", token_endpoint=f"{AS_URL}/token")
+    cfg = Config()
+    auth = TikTokAdsMcpAuth(config=cfg)
+    auth.start_authorization("https://frio.local/callback")
+    fake_post = lambda url, data, headers=None: (
+        200, {}, json.dumps({"access_token": "at-1", "refresh_token": "rt-1"}).encode())
+    tokens = auth.exchange_code(discovered, client_id="cid", code="authcode",
+                                redirect_uri="https://frio.local/callback",
+                                http_post=fake_post)
+    assert tokens["access_token"] == "at-1"
+    assert cfg.tiktok_ads_mcp_access_token == "at-1"
+    assert cfg.tiktok_ads_mcp_refresh_token == "rt-1"
+    assert auth.available() is True
+
+
+def test_refresh_requires_stored_refresh_token() -> None:
+    import pytest
+
+    discovered = DiscoveredEndpoints(authorization_endpoint="x", token_endpoint="y")
+    auth = TikTokAdsMcpAuth(config=Config())
+    with pytest.raises(RuntimeError, match="no refresh_token stored"):
+        auth.refresh(discovered)
+
+
+def test_refresh_updates_access_token() -> None:
+    discovered = DiscoveredEndpoints(authorization_endpoint="x", token_endpoint=f"{AS_URL}/token")
+    cfg = Config(tiktok_ads_mcp_client_id="cid", tiktok_ads_mcp_refresh_token="rt-1")
+    auth = TikTokAdsMcpAuth(config=cfg)
+    fake_post = lambda url, data, headers=None: (
+        200, {}, json.dumps({"access_token": "at-2"}).encode())
+    tokens = auth.refresh(discovered, http_post=fake_post)
+    assert tokens["access_token"] == "at-2"
+    assert cfg.tiktok_ads_mcp_access_token == "at-2"
+
+
+def test_run_request_wraps_connection_failure_in_discovery_error() -> None:
+    """Real bug found by actually running this against a blocked proxy: urllib's
+    URLError (connection-level failure, no HTTP response at all) must become a clear
+    DiscoveryError, not leak a raw traceback to the CLI user."""
+    import pytest
+    import urllib.error
+
+    from frio.connectors.tiktok_ads_mcp import _run_request
+
+    class _FakeRequest:
+        full_url = "https://business-api.tiktok.com/open_mcp/tt-ads-mcp-flat"
+
+    def _boom(*a, **kw):
+        raise urllib.error.URLError("Tunnel connection failed: 403 Forbidden")
+
+    import frio.connectors.tiktok_ads_mcp as mod
+    original = mod.urllib.request.urlopen
+    mod.urllib.request.urlopen = _boom
+    try:
+        with pytest.raises(DiscoveryError, match="could not reach"):
+            _run_request(_FakeRequest())
+    finally:
+        mod.urllib.request.urlopen = original

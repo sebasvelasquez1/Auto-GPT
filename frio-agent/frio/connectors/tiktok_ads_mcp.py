@@ -28,25 +28,81 @@ server`` (RFC 8414) names the real ``authorization_endpoint``, ``token_endpoint`
 guessing paths — it is protocol-correct regardless of what TikTok's current paths are,
 and matches the "no inventar" project rule better than repeating a third-party guess.
 
-What's fully built and tested here (pure, deterministic, no network): PKCE generation,
-the dynamic-client-registration request body, the authorization URL, and the token
-request bodies. What still needs a live network call (network access to TikTok's real
-server was not available while building this) is the actual HTTP round-trip: fetching
-the two metadata documents, POSTing registration, and exchanging the code — each is
-marked ``NotImplementedError`` below with the exact next step, same convention as every
-other not-yet-live connector in this codebase (see tiktok_shop_catalog.py).
+Status (2026-09-16): the FULL flow is implemented — PKCE, dynamic client registration,
+RFC 9728/8414 discovery, code exchange, and refresh. The request-building and
+response-parsing logic is unit-tested against realistically-shaped fake HTTP responses
+(tests/test_tiktok_ads_mcp.py). What is NOT yet verified is a live round-trip against
+TikTok's real server: this environment's egress proxy blocks business-api.tiktok.com
+outright (confirmed via direct curl -> "policy denial", not a flaky failure — see
+knowledge/investigacion/). Every network call below takes an injectable http_get/
+http_post so it can be run for real from a network that can reach TikTok (e.g. the
+user's own machine) via ``frio ads mcp-authorize`` — if TikTok's real response shape
+ever differs from the RFCs, the code raises ``DiscoveryError`` with the actual body
+rather than silently misparsing.
 """
 
 from __future__ import annotations
 
 import base64
 import hashlib
+import json
+import re
 import secrets
-import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
 from urllib.parse import urlencode
 
 from ..config import Config
+
+# Injectable so tests can verify the parsing logic against fake responses without a
+# live network call — this environment's egress proxy blocks business-api.tiktok.com
+# outright (confirmed via direct curl, "policy denial", not a flaky failure), so the
+# request/response PARSING is what's actually verified here; the live round-trip
+# needs to run from a network that can reach TikTok (e.g. the user's own machine).
+HttpResponse = tuple[int, dict, bytes]
+
+
+def _run_request(req: urllib.request.Request) -> HttpResponse:
+    """Shared error handling. urllib raises HTTPError for a real HTTP error response
+    (fine — we want the body TikTok sent back) but raises the more generic URLError
+    for a connection-level failure (DNS, refused, proxy block) — that one has no HTTP
+    status or body to parse, so it must become a clear DiscoveryError, not a crash.
+    Confirmed necessary by actually running this against a blocked proxy: it raised a
+    raw ``URLError`` traceback instead of a usable message before this fix.
+    """
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.status, dict(resp.headers), resp.read()
+    except urllib.error.HTTPError as exc:
+        return exc.code, dict(exc.headers or {}), exc.read()
+    except urllib.error.URLError as exc:
+        raise DiscoveryError(
+            f"could not reach {req.full_url} ({exc.reason}) — run this from a network "
+            f"that can reach TikTok's servers") from exc
+
+
+def _http_get(url: str, headers: dict | None = None) -> HttpResponse:
+    return _run_request(urllib.request.Request(url, headers=headers or {}, method="GET"))
+
+
+def _http_post_json(url: str, payload: dict, headers: dict | None = None) -> HttpResponse:
+    body = json.dumps(payload).encode()
+    return _run_request(urllib.request.Request(
+        url, data=body, method="POST",
+        headers={**(headers or {}), "Content-Type": "application/json"}))
+
+
+def _http_post_form(url: str, data: dict, headers: dict | None = None) -> HttpResponse:
+    body = urlencode(data).encode()
+    return _run_request(urllib.request.Request(
+        url, data=body, method="POST",
+        headers={**(headers or {}), "Content-Type": "application/x-www-form-urlencoded"}))
+
+
+class DiscoveryError(RuntimeError):
+    """The MCP server's response didn't match the expected RFC 9728/8414 shape."""
 
 MCP_ENDPOINTS = {
     "flat": "https://business-api.tiktok.com/open_mcp/tt-ads-mcp-flat",
@@ -155,33 +211,98 @@ class TikTokAdsMcpAuth:
                 f"authorization_servers -> /.well-known/oauth-authorization-server)",
                 self._pending_pkce, self._pending_state)
 
-    def discover(self) -> DiscoveredEndpoints:
+    def discover(self, *, http_get=_http_get) -> DiscoveredEndpoints:
         """RFC 9728 + RFC 8414 discovery: fetch the 401 challenge's resource_metadata,
         then the authorization server's own metadata document.
 
-        NOT IMPLEMENTED: requires a live HTTP round-trip to business-api.tiktok.com,
-        which was not reachable while building this (see the module docstring). Wire
-        with: GET self.mcp_url() -> read WWW-Authenticate's resource_metadata URL ->
-        GET that JSON -> read authorization_servers[0] -> GET
-        f"{that}/.well-known/oauth-authorization-server" -> return the 3 endpoints.
+        Live-network status: written and unit-tested against mocked responses shaped
+        exactly like the RFCs specify, but NEVER exercised against the real TikTok
+        server — this environment's egress proxy blocks business-api.tiktok.com
+        outright (confirmed via direct curl: "policy denial", not a flaky failure).
+        Run this from a network that can actually reach TikTok (your own machine) for
+        the first real test; if TikTok's real response shape differs from the RFCs,
+        this will raise ``DiscoveryError`` with the actual body, not silently misparse.
         """
-        raise NotImplementedError(
-            "wire the RFC 9728/8414 discovery HTTP calls here — see docstring")
+        status, headers, _ = http_get(self.mcp_url())
+        if status != 401:
+            raise DiscoveryError(
+                f"expected HTTP 401 (OAuth challenge) from {self.mcp_url()}, got {status}")
+        challenge = headers.get("WWW-Authenticate") or headers.get("www-authenticate")
+        match = re.search(r'resource_metadata="([^"]+)"', challenge or "")
+        if not match:
+            raise DiscoveryError(
+                f"no resource_metadata in WWW-Authenticate header: {challenge!r}")
+        rs_status, _, rs_body = http_get(match.group(1))
+        if rs_status != 200:
+            raise DiscoveryError(f"resource metadata fetch failed: HTTP {rs_status}")
+        resource_meta = json.loads(rs_body)
+        servers = resource_meta.get("authorization_servers") or []
+        if not servers:
+            raise DiscoveryError(f"no authorization_servers in {resource_meta!r}")
+        as_status, _, as_body = http_get(
+            f"{servers[0].rstrip('/')}/.well-known/oauth-authorization-server")
+        if as_status != 200:
+            raise DiscoveryError(f"authorization server metadata fetch failed: HTTP {as_status}")
+        as_meta = json.loads(as_body)
+        try:
+            return DiscoveredEndpoints(
+                authorization_endpoint=as_meta["authorization_endpoint"],
+                token_endpoint=as_meta["token_endpoint"],
+                registration_endpoint=as_meta.get("registration_endpoint"))
+        except KeyError as exc:
+            raise DiscoveryError(f"missing {exc} in authorization server metadata") from exc
 
     def register_client(self, discovered: DiscoveredEndpoints,
-                        redirect_uris: list[str]) -> str:
-        """POST build_registration_request(...) to discovered.registration_endpoint.
-        NOT IMPLEMENTED: needs live network. Returns the resulting client_id."""
-        raise NotImplementedError("wire dynamic client registration POST here")
+                        redirect_uris: list[str], *, http_post=_http_post_json) -> str:
+        """POST build_registration_request(...) to discovered.registration_endpoint,
+        per RFC 7591. Same live-network caveat as ``discover`` above."""
+        if not discovered.registration_endpoint:
+            raise DiscoveryError("authorization server did not advertise a "
+                                 "registration_endpoint (RFC 7591)")
+        req = build_registration_request(redirect_uris)
+        status, _, body = http_post(discovered.registration_endpoint, req)
+        if status not in (200, 201):
+            raise DiscoveryError(f"client registration failed: HTTP {status} {body!r}")
+        parsed = json.loads(body)
+        if "client_id" not in parsed:
+            raise DiscoveryError(f"registration response missing client_id: {parsed!r}")
+        self.config.tiktok_ads_mcp_client_id = parsed["client_id"]
+        return parsed["client_id"]
 
     def exchange_code(self, discovered: DiscoveredEndpoints, *, client_id: str,
-                      code: str, redirect_uri: str) -> dict:
-        """POST build_token_exchange_request(...); on success, persist access_token +
-        refresh_token (+ expiry) into config/storage. NOT IMPLEMENTED: live network."""
+                      code: str, redirect_uri: str, http_post=_http_post_form) -> dict:
+        """Exchange the authorization code for tokens. Requires
+        ``start_authorization()`` to have run first (needs the PKCE verifier)."""
         if self._pending_pkce is None:
             raise RuntimeError("call start_authorization() first")
-        raise NotImplementedError("wire the token-exchange POST here")
+        req = build_token_exchange_request(
+            discovered.token_endpoint, client_id=client_id, code=code,
+            redirect_uri=redirect_uri, code_verifier=self._pending_pkce.verifier)
+        status, _, body = http_post(req["url"], req["data"])
+        if status != 200:
+            raise DiscoveryError(f"token exchange failed: HTTP {status} {body!r}")
+        tokens = json.loads(body)
+        if "access_token" not in tokens:
+            raise DiscoveryError(f"token response missing access_token: {tokens!r}")
+        self.config.tiktok_ads_mcp_access_token = tokens["access_token"]
+        if "refresh_token" in tokens:
+            self.config.tiktok_ads_mcp_refresh_token = tokens["refresh_token"]
+        return tokens
 
-    def refresh(self, discovered: DiscoveredEndpoints) -> dict:
-        """POST build_refresh_request(...). NOT IMPLEMENTED: live network."""
-        raise NotImplementedError("wire the refresh POST here")
+    def refresh(self, discovered: DiscoveredEndpoints, *, http_post=_http_post_form) -> dict:
+        """Refresh the access token using the stored refresh_token."""
+        if not self.config.tiktok_ads_mcp_refresh_token:
+            raise RuntimeError("no refresh_token stored — run exchange_code() first")
+        client_id = self.config.tiktok_ads_mcp_client_id
+        if not client_id:
+            raise RuntimeError("no client_id stored — run register_client() first")
+        req = build_refresh_request(discovered.token_endpoint, client_id=client_id,
+                                    refresh_token=self.config.tiktok_ads_mcp_refresh_token)
+        status, _, body = http_post(req["url"], req["data"])
+        if status != 200:
+            raise DiscoveryError(f"token refresh failed: HTTP {status} {body!r}")
+        tokens = json.loads(body)
+        self.config.tiktok_ads_mcp_access_token = tokens["access_token"]
+        if "refresh_token" in tokens:
+            self.config.tiktok_ads_mcp_refresh_token = tokens["refresh_token"]
+        return tokens
