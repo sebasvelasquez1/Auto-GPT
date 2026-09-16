@@ -147,6 +147,13 @@ class Config(BaseSettings):
     tiktok_shop_cipher: str | None = None
     tiktok_ads_api_key: str | None = None
 
+    # TikTok Ads — official MCP server (no developer account/app needed; see
+    # connectors/tiktok_ads_mcp.py). OAuth 2.1 + PKCE, dynamic client registration —
+    # client_id is issued at registration time, not chosen by us.
+    tiktok_ads_mcp_client_id: str | None = None
+    tiktok_ads_mcp_access_token: str | None = None
+    tiktok_ads_mcp_refresh_token: str | None = None
+
 
 def load_config() -> Config:
     return Config()

@@ -388,6 +388,34 @@ def commerce_publish(
                    "and you approve each publish.)")
 
 
+@ads_app.command("mcp-authorize")
+def ads_mcp_authorize(
+    redirect_uri: str = typer.Option(
+        "https://frio.local/callback",
+        help="Where TikTok redirects after you approve (placeholder until a real "
+             "callback receiver exists)"),
+    endpoint: str = typer.Option("flat", help="'flat' (~400 tools) or 'layered' (~40)"),
+) -> None:
+    """Step 1 of connecting via TikTok's official Ads MCP server — no developer
+    account or company needed (research 2026-09-15). Prints what's ready today and
+    what step still needs a live network call to finish."""
+    from .config import load_config
+    from .connectors.tiktok_ads_mcp import TikTokAdsMcpAuth
+
+    config = load_config()
+    auth = TikTokAdsMcpAuth(config=config, endpoint=endpoint)
+    typer.echo(f"MCP endpoint: {auth.mcp_url()}")
+    hint, pkce, state = auth.start_authorization(redirect_uri)
+    typer.echo(f"PKCE code_verifier (keep secret, holds until token exchange):\n  "
+               f"{pkce.verifier}")
+    typer.echo(f"State (CSRF token):\n  {state}")
+    typer.echo(f"\n⏳ Not runnable yet — the next step needs a live call TikTok's "
+               f"server:\n  {hint}")
+    typer.echo("\nOnce that discovery call is wired (next session), this command will "
+               "print a single link — you open it, log into TikTok, click approve, "
+               "and you're connected. No app, no company, no domain.")
+
+
 @ads_app.command("launch")
 def ads_launch(
     name: str = typer.Option("frio-test", help="Campaign name"),
