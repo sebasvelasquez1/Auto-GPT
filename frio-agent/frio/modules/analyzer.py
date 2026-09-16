@@ -64,7 +64,24 @@ def lifecycle_stage(weekly_units: list[int], config: Config) -> tuple[str, str]:
 
 
 def assess_viability(pnl: ProductPnL, config: Config,
-                     weekly_units: list[int] | None = None) -> Viability:
+                     weekly_units: list[int] | None = None, *,
+                     revenue_includes_organic: bool = False) -> Viability:
+    """``revenue_includes_organic`` marks revenue that is NOT cleanly attributable to
+    ad spend, which is the case for anything sourced from TikTok Ads reporting.
+
+    TikTok's own help centre defines the GMV Max "Gross revenue" metric as "the total
+    gross revenue of TikTok Shop orders, both paid AND organic, attributed to your
+    campaign", and warns "ROI includes both organic and paid orders" (read 2026-09-16,
+    ads.tiktok.com/help — see knowledge/investigacion/). Dividing that by ad spend
+    therefore OVERSTATES how well the ads are working: organic sales the ads did not
+    cause get credited to them.
+
+    So a SCALE verdict is vetoed on such revenue. Scaling raises spend, and the core
+    project rule is that spend-increasing actions need clean evidence, not optimistic
+    evidence. CANCEL is left alone on purpose: inflated revenue makes a loss look
+    BETTER than it is, so a cancel computed from it is conservative, not risky.
+    Separating paid from organic needs Shop-side order data, not Ads reporting.
+    """
     reasons: list[str] = []
 
     # 1) Structural loss — lose money on every unit regardless of ads. Cancel.
@@ -102,6 +119,20 @@ def assess_viability(pnl: ProductPnL, config: Config,
                                f"still worth selling; cut scaling spend, keep the best ad, "
                                f"and line up the next design."], pnl.snapshot())
         if poas >= config.fin_scale_poas:
+            if revenue_includes_organic:
+                return Viability(
+                    "continue",
+                    f"Looks scalable (POAS {poas:.2f}x) but the revenue is not clean — "
+                    f"holding at continue.",
+                    reasons + [
+                        f"Net profit ${pnl.net_profit:.2f} (net margin "
+                        f"{pnl.net_margin*100:.0f}%); POAS >= {config.fin_scale_poas:g}x.",
+                        "SCALE vetoed: this revenue includes ORGANIC orders (TikTok's "
+                        "Ads reporting mixes paid and organic into one Gross revenue "
+                        "figure), so POAS overstates what the ads actually caused. "
+                        "Connect TikTok Shop order data — or attribute paid orders "
+                        "another way — before raising spend on this."],
+                    pnl.snapshot())
             return Viability(
                 "scale", f"Strongly profitable — scale it (POAS {poas:.2f}x).",
                 reasons + [f"Net profit ${pnl.net_profit:.2f} "
@@ -119,9 +150,11 @@ def assess_viability(pnl: ProductPnL, config: Config,
 
 
 def analyze(cs: CostStructure, units: int, ad_spend: float, config: Config | None = None,
-            revenue: float | None = None) -> Viability:
+            revenue: float | None = None, *,
+            revenue_includes_organic: bool = False) -> Viability:
     config = config or load_config()
-    return assess_viability(compute_pnl(cs, units, ad_spend, revenue), config)
+    return assess_viability(compute_pnl(cs, units, ad_spend, revenue), config,
+                            revenue_includes_organic=revenue_includes_organic)
 
 
 def cost_structure_from(config: Config, *, price: float, product_cost: float,

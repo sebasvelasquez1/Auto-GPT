@@ -92,6 +92,14 @@ Hallazgos de mercado van a `frio-agent/knowledge/investigacion/`.
   Remaining step is HUMAN, not technical: the seller opens the approval link and pastes
   the returned address into `frio ads mcp-exchange --redirect-url='…'`. Details:
   knowledge/investigacion/2026-09-conexion-tiktok-shop-ads-consolidado.md §5.
+- ⚠️ ADS-REPORTED REVENUE IS NOT CLEAN ATTRIBUTION. TikTok's own help centre: GMV Max
+  "Gross revenue" is "TikTok Shop orders, both paid and organic, attributed to your
+  campaign", and "ROI includes both organic and paid orders" (read 2026-09-16). POAS
+  from it is therefore inflated, so `assess_viability(revenue_includes_organic=True)`
+  VETOES the SCALE verdict (down to CONTINUE) while leaving CANCEL alone — inflated
+  revenue makes a loss look better, so cancelling on it is conservative. Splitting paid
+  from organic needs Shop-side order data. See
+  knowledge/investigacion/2026-09-ads-solo-vs-shop-que-necesita-frio.md.
 - ⚠️ ACCOUNT TOPOLOGY (user-declared 2026-09-16, see knowledge/CUENTAS-Y-JURISDICCION.md):
   TikTok Shop is US-only for this seller, whose personal TikTok is Colombian. So there
   are THREE separate identities — personal TikTok (Colombia, useless here), the US
