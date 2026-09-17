@@ -26,7 +26,9 @@ optimize_app = typer.Typer(help="Optimize engine: kill/scale rules (Phase 4)")
 analyzer_app = typer.Typer(help="Commercial/financial analyzer: product viability")
 commerce_app = typer.Typer(help="Commerce / fulfillment (Phase 5, gated)")
 ads_app = typer.Typer(help="Live ads + closed loop (Phase 6, most gated)")
+costs_app = typer.Typer(help="Real per-product costs — a verdict needs these")
 db_app = typer.Typer(help="Database")
+app.add_typer(costs_app, name="costs")
 app.add_typer(capabilities_app, name="capabilities")
 app.add_typer(competitors_app, name="competitors")
 app.add_typer(research_app, name="research")
@@ -640,3 +642,66 @@ def db_init() -> None:
 
 if __name__ == "__main__":
     app()
+
+
+@costs_app.command("set")
+def costs_set(
+    sku: str = typer.Option(..., help="The product/listing id this applies to"),
+    price: float = typer.Option(None, help="What the buyer pays (from TikTok Shop)"),
+    product_cost: float = typer.Option(None, help="What the item costs YOU (blank + print)"),
+    shipping: float = typer.Option(None, help="Per-unit shipping/handling you absorb"),
+    affiliate_pct: float = typer.Option(None, help="Creator commission as a fraction, e.g. 0.1"),
+    return_rate: float = typer.Option(None, help="Measured return rate, e.g. 0.03"),
+    note: str = typer.Option(None, help="Anything worth remembering about this product"),
+) -> None:
+    """Record the real numbers for one product. Only the fields you pass are changed."""
+    from .product_costs import load_costs, save_costs
+
+    book = load_costs()
+    cost = book.get(sku)
+    for field_name, value in (("price", price), ("product_cost", product_cost),
+                              ("shipping_cost", shipping),
+                              ("affiliate_pct", affiliate_pct),
+                              ("return_rate", return_rate), ("note", note)):
+        if value is not None:
+            setattr(cost, field_name, value)
+    book.put(cost)
+    where = save_costs(book)
+    gaps = cost.missing()
+    typer.echo(f"Saved {sku} to {where}")
+    if gaps:
+        typer.echo(f"⚠️  Still missing: {', '.join(gaps)} — no verdict for this product "
+                   f"until they are set (Frío will not invent them).")
+    else:
+        typer.echo("✅ Complete — this product can get a real verdict.")
+
+
+@costs_app.command("show")
+def costs_show() -> None:
+    """List every product's costs and say plainly which ones are still blocked."""
+    from .config import load_config
+    from .product_costs import load_costs
+
+    config = load_config()
+    book = load_costs()
+    if not book.products:
+        typer.echo("No costs recorded yet. For each product Frío needs two numbers:\n"
+                   "  frio costs set --sku <id> --price <buyer pays> "
+                   "--product-cost <costs you>")
+        return
+    typer.echo(f"Fees applied to all products: platform {config.fin_platform_fee_pct*100:.1f}%"
+               f" + payment {config.fin_payment_fee_pct*100:.1f}%"
+               f" + referral-fee tax {config.fin_referral_fee_tax_pct*100:.1f}%\n")
+    for sku, c in sorted(book.products.items()):
+        if c.complete():
+            margin = c.price - c.product_cost - c.shipping_cost \
+                - c.price * config.fin_platform_fee_pct
+            typer.echo(f"✅ {sku}: price ${c.price:.2f} | cost ${c.product_cost:.2f} "
+                       f"| ship ${c.shipping_cost:.2f} → ~${margin:.2f}/unit before ads")
+        else:
+            typer.echo(f"⚠️  {sku}: missing {', '.join(c.missing())} — no verdict possible")
+    blocked = book.incomplete()
+    if blocked:
+        typer.echo(f"\n{len(blocked)} product(s) blocked on missing numbers. "
+                   f"Frío refuses to guess them, because a guessed price makes a "
+                   f"guessed verdict about real money.")

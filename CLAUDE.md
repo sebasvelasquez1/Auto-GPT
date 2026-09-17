@@ -92,14 +92,27 @@ Hallazgos de mercado van a `frio-agent/knowledge/investigacion/`.
   Remaining step is HUMAN, not technical: the seller opens the approval link and pastes
   the returned address into `frio ads mcp-exchange --redirect-url='…'`. Details:
   knowledge/investigacion/2026-09-conexion-tiktok-shop-ads-consolidado.md §5.
-- ⚠️ ADS-REPORTED REVENUE IS NOT CLEAN ATTRIBUTION. TikTok's own help centre: GMV Max
-  "Gross revenue" is "TikTok Shop orders, both paid and organic, attributed to your
-  campaign", and "ROI includes both organic and paid orders" (read 2026-09-16). POAS
-  from it is therefore inflated, so `assess_viability(revenue_includes_organic=True)`
-  VETOES the SCALE verdict (down to CONTINUE) while leaving CANCEL alone — inflated
-  revenue makes a loss look better, so cancelling on it is conservative. Splitting paid
-  from organic needs Shop-side order data. See
-  knowledge/investigacion/2026-09-ads-solo-vs-shop-que-necesita-frio.md.
+- ⚠️ PRODUCT SELLABILITY vs AD EFFICIENCY ARE SEPARATE QUESTIONS — never conflate them.
+  Organic sales are EVIDENCE the market wants the product (the cleanest evidence there
+  is: nobody paid to show it to anyone), so they must never count against it; ads extend
+  reach and scale what organic proved. An earlier version vetoed the product SCALE
+  verdict on organic-inclusive revenue and was WRONG — corrected 2026-09-17 on the
+  owner's challenge. `assess_viability` judges the product on total revenue;
+  `ad_efficiency.assess_ad_efficiency` judges the ADS separately and is reported
+  alongside, never as a gate. Its tiers: (1) paid-attributed revenue — Seller Center
+  Data Compass "Ads Gross Revenue" vs "Non-Ads Gross Revenue", Shop-side only;
+  (2) incremental lift over a pre-ad organic baseline; (3) explicit `unknown` — no
+  optimistic default. Why Ads data can't answer it: TikTok attributes a purchase to a
+  GMV Max campaign even when the buyer "doesn't view or click on any ads". NOTE: plain
+  (non-GMV-Max) Shop Ads DO have real attribution (7-day click / 1-day view). See
+  knowledge/investigacion/2026-09-medir-ads-tiktok-shop.md.
+- Per-product REAL costs live in `product_costs.json` via `frio costs set|show`.
+  `product_costs.cost_structure_for` RAISES `MissingCostsError` rather than defaulting a
+  price — a fabricated price makes a fabricated verdict about real money. Platform fee
+  default corrected 0.08 -> 0.06 (TikTok's own published US referral fee since
+  2024-04-01); referral-fee sales tax (since 2025-11-01) and the refund admin fee (20%
+  of referral, $5 cap) are real but state/return dependent, so `fin_referral_fee_tax_pct`
+  stays a visible 0 to be filled from a real payout statement, not invented.
 - ⚠️ ACCOUNT TOPOLOGY (user-declared 2026-09-16, see knowledge/CUENTAS-Y-JURISDICCION.md):
   TikTok Shop is US-only for this seller, whose personal TikTok is Colombian. So there
   are THREE separate identities — personal TikTok (Colombia, useless here), the US

@@ -52,11 +52,20 @@ los ingresos incluyen ventas orgánicas que los anuncios **no** causaron, el POA
 **inflado** → un producto puede parecer "escalable" cuando el anuncio aporta poco. Ese es
 justo el error que gasta dinero de verdad.
 
-**Corregido en código (no solo anotado):** `assess_viability(..., revenue_includes_organic=True)`
-**veta el veredicto SCALE** y lo baja a CONTINUE, explicando el motivo y el remedio.
-Asimetría deliberada, coherente con la regla del proyecto: CANCEL **no** se veta, porque
-con ingresos inflados una pérdida se ve *mejor* de lo que es, así que cancelar con esos
-datos es conservador, no arriesgado. Ver `tests/test_organic_contamination.py`.
+> ### ⛔ CORRECCIÓN (2026-09-17) — lo que decía este párrafo estaba MAL
+>
+> Este documento afirmaba que la solución era **vetar el veredicto SCALE del producto**
+> cuando los ingresos incluían ventas orgánicas. **El dueño del proyecto lo rechazó y
+> tenía razón.** Vetar el producto confunde dos preguntas: las ventas orgánicas son
+> *evidencia de que el mercado quiere el producto*, y los ads escalan lo que el orgánico
+> probó. Penalizar al producto por venderse solo invierte el incentivo.
+>
+> El veto se **eliminó**. La pregunta estrecha y legítima —*¿son eficientes los ads?*—
+> ahora vive aparte en `frio/ad_efficiency.py` y se reporta **al lado** del veredicto,
+> nunca como candado. Además apareció un matiz que aquí faltaba: los Shop Ads normales
+> (no GMV Max) **sí** tienen atribución real (7 días clic / 1 día vista).
+>
+> Análisis completo y soluciones: `2026-09-medir-ads-tiktok-shop.md`.
 
 **Separar pagado de orgánico requiere datos de órdenes del lado Shop.** Ese es el
 argumento técnico más fuerte para conectar Shop, más allá del catálogo y la publicación.
@@ -64,9 +73,18 @@ argumento técnico más fuerte para conectar Shop, más allá del catálogo y la
 ## Recomendación
 
 1. **Ahora:** conectar solo Ads. Sirve para investigar, crear, probar, medir y **matar
-   perdedores** (que es la mitad que ahorra dinero). Los costos se entran a mano.
-2. **Antes de escalar con dinero de verdad:** conectar Shop. Sin eso, el código
-   deliberadamente no permitirá un SCALE limpio.
+   perdedores** (que es la mitad que ahorra dinero). Los costos reales se entran una vez
+   con `frio costs set` (ver `product_costs.py`).
+2. **Conectar Shop cuando quieras saber si el ANUNCIO funciona**, no para poder escalar.
+   El producto se puede escalar con datos de Ads solos; lo que falta sin Shop es separar
+   qué ventas causó el anuncio (`Ads Gross Revenue` en Seller Center).
+   *(Corregido 2026-09-17: antes este punto decía que el código bloquearía el escalado
+   sin Shop. Ya no lo hace, y no debía hacerlo.)*
+
+**Dato del lado Ads verificado en el SDK oficial:** `GET /open_api/v1.3/gmv_max/store/list/`
+existe, así que la API de Ads **sí ve que tu Shop está vinculado**. Pero en `StoreApi` no
+hay ningún endpoint que liste **los productos** de tu Shop — leer tu catálogo sigue
+necesitando la API de Shop.
 
 ## Fuentes
 

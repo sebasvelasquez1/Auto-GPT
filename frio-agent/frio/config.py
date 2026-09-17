@@ -67,7 +67,17 @@ class Config(BaseSettings):
     fin_seasonality_min_weeks: int = 12       # less history than this -> flag "verify seasonality"
 
     # --- Financial / commercial analyzer (product viability) ---
-    fin_platform_fee_pct: float = 0.08   # TikTok Shop apparel referral (incl. US pay proc)
+    # TikTok Shop US referral fee. 6% is TikTok's OWN published rate for most
+    # categories since 2024-04-01 (seller-us.tiktok.com university; select jewelry
+    # sub-categories are 5%, and a new-seller promo can be 3% for the first 30 days).
+    # CORRECTED 2026-09-17 from a previous 0.08, which no source supported.
+    fin_platform_fee_pct: float = 0.06
+    # Sales tax IS charged on the referral fee since 2025-11-01 (TikTok seller docs),
+    # and refunds carry a Refund Administration Fee of 20% of the referral fee, capped
+    # at $5/SKU. Both are real and both depend on the seller's state and return rate,
+    # so neither is invented here: set this from an actual payout statement. Left at 0
+    # so the number is visibly absent rather than silently made up.
+    fin_referral_fee_tax_pct: float = 0.0
     fin_payment_fee_pct: float = 0.0
     fin_default_return_rate: float = 0.0
     fin_target_poas: float = 1.5         # healthy ad-profitability

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
+from ..ad_efficiency import UNKNOWN, AdEfficiency
 from ..capabilities import capability
 from ..config import Config, load_config
 from ..db.base import make_session_factory
@@ -32,10 +33,32 @@ from ..metrics import aggregate_all
 
 @dataclass
 class Viability:
-    decision: str            # cancel | watch | continue | scale
+    decision: str            # cancel | watch | continue | scale | harvest
     headline: str
     reasons: list[str]
     pnl: dict
+    # A SEPARATE reading on whether the advertising is working. Informational: it never
+    # changes ``decision``. See ad_efficiency.py for why the two must not be conflated.
+    ads: dict | None = None
+
+    def snapshot(self) -> dict:
+        return {"decision": self.decision, "headline": self.headline,
+                "reasons": list(self.reasons), "pnl": self.pnl, "ads": self.ads}
+
+
+def _with_ads(v: Viability, eff: AdEfficiency | None) -> Viability:
+    """Attach the ad reading without letting it touch the product verdict."""
+    if eff is None:
+        return v
+    v.ads = eff.snapshot()
+    if eff.status == UNKNOWN and v.decision == "scale":
+        # Disclosure, not a veto: the human approving the budget rise should know the
+        # ads themselves are unmeasured. The product verdict stands on its own.
+        v.reasons = v.reasons + [
+            "Note for the spend approval: the ads are UNMEASURED (" + eff.headline
+            + ") — the product earns this verdict, not the advertising. "
+              "See the 'ads' field."]
+    return v
 
 
 def lifecycle_stage(weekly_units: list[int], config: Config) -> tuple[str, str]:
@@ -65,22 +88,20 @@ def lifecycle_stage(weekly_units: list[int], config: Config) -> tuple[str, str]:
 
 def assess_viability(pnl: ProductPnL, config: Config,
                      weekly_units: list[int] | None = None, *,
-                     revenue_includes_organic: bool = False) -> Viability:
-    """``revenue_includes_organic`` marks revenue that is NOT cleanly attributable to
-    ad spend, which is the case for anything sourced from TikTok Ads reporting.
+                     ad_efficiency: AdEfficiency | None = None) -> Viability:
+    """Does this PRODUCT sell profitably? Total revenue, organic sales included.
 
-    TikTok's own help centre defines the GMV Max "Gross revenue" metric as "the total
-    gross revenue of TikTok Shop orders, both paid AND organic, attributed to your
-    campaign", and warns "ROI includes both organic and paid orders" (read 2026-09-16,
-    ads.tiktok.com/help — see knowledge/investigacion/). Dividing that by ad spend
-    therefore OVERSTATES how well the ads are working: organic sales the ads did not
-    cause get credited to them.
+    DESIGN CORRECTION (2026-09-17). An earlier version of this function vetoed the
+    SCALE verdict whenever revenue mixed organic sales with paid ones. That was wrong,
+    and the project owner was right to reject it: organic sales are evidence the market
+    wants the product — the cleanest evidence available, since nobody paid to put it in
+    front of anyone. Ads then extend reach; they scale what organic already proved.
+    Penalising a product for also selling organically gets the incentive backwards.
 
-    So a SCALE verdict is vetoed on such revenue. Scaling raises spend, and the core
-    project rule is that spend-increasing actions need clean evidence, not optimistic
-    evidence. CANCEL is left alone on purpose: inflated revenue makes a loss look
-    BETTER than it is, so a cancel computed from it is conservative, not risky.
-    Separating paid from organic needs Shop-side order data, not Ads reporting.
+    The narrower question blended revenue genuinely cannot answer — are the ADS
+    efficient? — now lives in ``ad_efficiency.assess_ad_efficiency`` and is reported
+    ALONGSIDE this verdict, never as a gate on it. A human still authorises every
+    spend increase (core project rule), and they get both readings to decide with.
     """
     reasons: list[str] = []
 
@@ -119,25 +140,12 @@ def assess_viability(pnl: ProductPnL, config: Config,
                                f"still worth selling; cut scaling spend, keep the best ad, "
                                f"and line up the next design."], pnl.snapshot())
         if poas >= config.fin_scale_poas:
-            if revenue_includes_organic:
-                return Viability(
-                    "continue",
-                    f"Looks scalable (POAS {poas:.2f}x) but the revenue is not clean — "
-                    f"holding at continue.",
-                    reasons + [
-                        f"Net profit ${pnl.net_profit:.2f} (net margin "
-                        f"{pnl.net_margin*100:.0f}%); POAS >= {config.fin_scale_poas:g}x.",
-                        "SCALE vetoed: this revenue includes ORGANIC orders (TikTok's "
-                        "Ads reporting mixes paid and organic into one Gross revenue "
-                        "figure), so POAS overstates what the ads actually caused. "
-                        "Connect TikTok Shop order data — or attribute paid orders "
-                        "another way — before raising spend on this."],
-                    pnl.snapshot())
-            return Viability(
+            return _with_ads(Viability(
                 "scale", f"Strongly profitable — scale it (POAS {poas:.2f}x).",
                 reasons + [f"Net profit ${pnl.net_profit:.2f} "
                            f"(net margin {pnl.net_margin*100:.0f}%); POAS "
-                           f">= {config.fin_scale_poas:g}x."], pnl.snapshot())
+                           f">= {config.fin_scale_poas:g}x."], pnl.snapshot()),
+                ad_efficiency)
         return Viability(
             "continue", f"Profitable — keep it (POAS {poas:.2f}x).",
             reasons + [f"Net profit ${pnl.net_profit:.2f} "
@@ -151,10 +159,10 @@ def assess_viability(pnl: ProductPnL, config: Config,
 
 def analyze(cs: CostStructure, units: int, ad_spend: float, config: Config | None = None,
             revenue: float | None = None, *,
-            revenue_includes_organic: bool = False) -> Viability:
+            ad_efficiency: AdEfficiency | None = None) -> Viability:
     config = config or load_config()
     return assess_viability(compute_pnl(cs, units, ad_spend, revenue), config,
-                            revenue_includes_organic=revenue_includes_organic)
+                            ad_efficiency=ad_efficiency)
 
 
 def cost_structure_from(config: Config, *, price: float, product_cost: float,
