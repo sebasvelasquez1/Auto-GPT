@@ -106,6 +106,17 @@ Hallazgos de mercado van a `frio-agent/knowledge/investigacion/`.
   GMV Max campaign even when the buyer "doesn't view or click on any ads". NOTE: plain
   (non-GMV-Max) Shop Ads DO have real attribution (7-day click / 1-day view). See
   knowledge/investigacion/2026-09-medir-ads-tiktok-shop.md.
+- 🤖 THE AUTONOMOUS RUNNER (`frio/agent.py`, `frio agent tick|run`) — added 2026-09-18
+  after the owner pointed out that everything else was a capability and nothing woke up
+  and used them. `decide()` reads the shop + verdicts + closed loop and classifies every
+  action AUTO (spend-reducing/neutral: kills, verdicts, cost resolution — executed
+  immediately) or APPROVAL (spend-increasing/outward: scale, launch, publish, paid
+  render — QUEUED, never executed, and there is deliberately no flag that would execute
+  one). So it can run unattended forever and the worst it can do alone is stop spending.
+  The next-action choice is deterministic code, NOT an LLM — model judgement stays
+  inside individual capabilities, never in the loop that touches money. One failing step
+  is recorded and the tick continues, because an agent that dies on the first error
+  silently stops running the business.
 - AUTONOMY IS THE POINT — the agent derives product economics ITSELF; manual entry is
   only the fallback (corrected 2026-09-18 on the owner's challenge: an earlier design
   made typing costs in the primary path, which is backwards for an autonomous system).

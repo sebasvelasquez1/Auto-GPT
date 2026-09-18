@@ -26,8 +26,10 @@ optimize_app = typer.Typer(help="Optimize engine: kill/scale rules (Phase 4)")
 analyzer_app = typer.Typer(help="Commercial/financial analyzer: product viability")
 commerce_app = typer.Typer(help="Commerce / fulfillment (Phase 5, gated)")
 ads_app = typer.Typer(help="Live ads + closed loop (Phase 6, most gated)")
+agent_app = typer.Typer(help="The autonomous runner — decides and acts on its own")
 costs_app = typer.Typer(help="Real per-product costs — a verdict needs these")
 db_app = typer.Typer(help="Database")
+app.add_typer(agent_app, name="agent")
 app.add_typer(costs_app, name="costs")
 app.add_typer(capabilities_app, name="capabilities")
 app.add_typer(competitors_app, name="competitors")
@@ -717,3 +719,65 @@ def costs_show() -> None:
         typer.echo(f"{len(manual_needed)} need a source connected or a manual override. "
                    f"Frío will not guess a price: a guessed price makes a guessed "
                    f"verdict about real money.")
+
+
+def _print_tick(report) -> None:
+    labels = {"auto": "✅ DID", "needs_approval": "🖐️  NEEDS YOU", "blocked": "⛔ BLOCKED"}
+    if not report.actions:
+        typer.echo("Nothing to do this tick.")
+    for a in report.actions:
+        typer.echo(f"{labels[a.mode]:16} {a.name:26} {a.reason}")
+    counts = report.snapshot()["counts"]
+    typer.echo(f"\ndid {counts['executed']} · waiting on you {counts['awaiting_human']} "
+               f"· blocked {counts['blocked']}")
+    for err in report.errors:
+        typer.echo(f"⚠️  {err}")
+    if report.awaiting_human():
+        typer.echo("\nNothing above marked NEEDS YOU has been done. Anything that would "
+                   "increase spend stops here, by design.")
+
+
+@agent_app.command("tick")
+def agent_tick() -> None:
+    """Wake the agent once: look at the business, decide, act on what is safe.
+
+    Safe means spend-reducing or spend-neutral. Anything that would increase spend or
+    act outwardly is listed for you and NOT executed — there is no flag that changes
+    that, because approving is meant to be a separate human act.
+    """
+    from .agent import tick as run_tick
+    from .config import load_config
+
+    _print_tick(run_tick(load_config()))
+
+
+@agent_app.command("run")
+def agent_run(
+    every: int = typer.Option(3600, help="Seconds between wake-ups"),
+    max_ticks: int = typer.Option(0, help="Stop after N ticks (0 = run forever)"),
+) -> None:
+    """Run the agent continuously — this is the unattended mode.
+
+    It can be left running: the worst it can do by itself is stop spending money.
+    """
+    import time
+
+    from .agent import tick as run_tick
+    from .config import load_config
+
+    config = load_config()
+    n = 0
+    typer.echo(f"Frío agent running every {every}s. Ctrl-C to stop.")
+    while True:
+        n += 1
+        typer.echo(f"\n--- tick {n} ---")
+        try:
+            _print_tick(run_tick(config))
+        except KeyboardInterrupt:
+            raise
+        except Exception as exc:  # noqa: BLE001 - a bad tick must not end the run
+            typer.echo(f"⚠️  tick failed: {type(exc).__name__}: {exc}")
+        if max_ticks and n >= max_ticks:
+            typer.echo(f"\nStopped after {n} ticks.")
+            return
+        time.sleep(every)
