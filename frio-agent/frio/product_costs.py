@@ -11,6 +11,11 @@ So the rule here is: **no real price and product cost, no verdict.** ``cost_stru
 raises ``MissingCostsError`` naming exactly which numbers are missing for which SKU,
 and the dashboard shows "costs pending" instead of a fabricated P&L.
 
+SCOPE (corrected 2026-09-18): this file is the FALLBACK, not the main path. An
+autonomous agent derives these numbers itself — price from the shop listing, cost from
+the fulfilment provider — see ``cost_resolver.py``. What lives here is the override for
+whatever no connector can supply.
+
 Fee defaults are verified, not guessed — see config.fin_platform_fee_pct.
 """
 
@@ -38,6 +43,7 @@ class ProductCost:
     price: float | None = None            # what the buyer pays, from TikTok Shop
     product_cost: float | None = None     # blank + print (Printful) or supplier cost
     shipping_cost: float = 0.0            # per-unit shipping/handling you absorb
+    blank: str | None = None              # which Printful item, so cost can be looked up
     affiliate_pct: float = 0.0            # creator commission, if affiliate-driven
     return_rate: float | None = None      # measured returns; None = use config default
     note: str = ""

@@ -31,6 +31,22 @@ class PrintfulFulfillment(Fulfillment):
     def available(self) -> bool:
         return bool(self._config.printful_api_key)
 
+    def unit_cost_for(self, blank: str) -> dict | None:
+        """What one unit of ``blank`` costs the seller: {product_cost, shipping_cost}.
+
+        Part of the autonomy path — the agent derives a product's cost from the
+        fulfilment provider instead of asking a human to type it. Returns None when
+        this provider cannot say, so the caller can fall back rather than assume zero.
+
+        Live: Printful's v2 catalog exposes per-variant prices (base price by technique,
+        placement costs, quantity discounts) at api.printful.com/v2 — see
+        developers.printful.com/docs/v2-beta. The exact response mapping is NOT wired
+        yet and is deliberately not guessed here; offline figures are used until it is.
+        """
+        from .fixtures import offline_blank_cost
+
+        return offline_blank_cost(blank)
+
     def publish_product(self, product: ProductCandidate) -> str:
         if not self.available():
             return f"printful-offline-{_slug(product.title)}"

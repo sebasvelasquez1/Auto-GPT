@@ -678,30 +678,42 @@ def costs_set(
 
 @costs_app.command("show")
 def costs_show() -> None:
-    """List every product's costs and say plainly which ones are still blocked."""
+    """What the agent worked out BY ITSELF for every product in the shop.
+
+    Reads the shop's own catalog — nobody hands it a product list — and derives each
+    product's economics from the connectors. Says where every number came from, so a
+    typed-in guess can never pass for live data.
+    """
     from .config import load_config
-    from .product_costs import load_costs
+    from .cost_resolver import AUTOMATIC_SOURCES, resolve_all
 
     config = load_config()
-    book = load_costs()
-    if not book.products:
-        typer.echo("No costs recorded yet. For each product Frío needs two numbers:\n"
-                   "  frio costs set --sku <id> --price <buyer pays> "
-                   "--product-cost <costs you>")
+    resolved = resolve_all(config)
+    if not resolved:
+        typer.echo("The shop catalog returned no products. With no TikTok Shop "
+                   "credentials this falls back to offline fixtures — check "
+                   "FRIO_TIKTOK_SHOP_* keys.")
         return
     typer.echo(f"Fees applied to all products: platform {config.fin_platform_fee_pct*100:.1f}%"
                f" + payment {config.fin_payment_fee_pct*100:.1f}%"
                f" + referral-fee tax {config.fin_referral_fee_tax_pct*100:.1f}%\n")
-    for sku, c in sorted(book.products.items()):
-        if c.complete():
-            margin = c.price - c.product_cost - c.shipping_cost \
-                - c.price * config.fin_platform_fee_pct
-            typer.echo(f"✅ {sku}: price ${c.price:.2f} | cost ${c.product_cost:.2f} "
-                       f"| ship ${c.shipping_cost:.2f} → ~${margin:.2f}/unit before ads")
-        else:
-            typer.echo(f"⚠️  {sku}: missing {', '.join(c.missing())} — no verdict possible")
-    blocked = book.incomplete()
-    if blocked:
-        typer.echo(f"\n{len(blocked)} product(s) blocked on missing numbers. "
-                   f"Frío refuses to guess them, because a guessed price makes a "
-                   f"guessed verdict about real money.")
+    manual_needed = []
+    for r in resolved:
+        if not r.complete():
+            manual_needed.append(r)
+            typer.echo(f"⚠️  {r.sku}: could not resolve {', '.join(r.gaps)} — no verdict")
+            continue
+        cs = r.to_cost_structure(config)
+        mark = "🤖" if r.fully_automatic() else "✍️ "
+        typer.echo(f"{mark} {r.sku}: price ${r.price:.2f} | cost ${r.product_cost:.2f} "
+                   f"| ship ${r.shipping_cost:.2f} → "
+                   f"${cs.contribution_per_unit():.2f}/unit before ads")
+        typer.echo(f"     price from {r.sources.get('price')}, "
+                   f"cost from {r.sources.get('product_cost')}")
+    auto = sum(1 for r in resolved if r.fully_automatic())
+    typer.echo(f"\n{auto}/{len(resolved)} products priced with NO human input "
+               f"(🤖 = fully automatic, ✍️  = a number came from manual entry).")
+    if manual_needed:
+        typer.echo(f"{len(manual_needed)} need a source connected or a manual override. "
+                   f"Frío will not guess a price: a guessed price makes a guessed "
+                   f"verdict about real money.")

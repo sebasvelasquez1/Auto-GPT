@@ -106,9 +106,15 @@ Hallazgos de mercado van a `frio-agent/knowledge/investigacion/`.
   GMV Max campaign even when the buyer "doesn't view or click on any ads". NOTE: plain
   (non-GMV-Max) Shop Ads DO have real attribution (7-day click / 1-day view). See
   knowledge/investigacion/2026-09-medir-ads-tiktok-shop.md.
-- Per-product REAL costs live in `product_costs.json` via `frio costs set|show`.
-  `product_costs.cost_structure_for` RAISES `MissingCostsError` rather than defaulting a
-  price — a fabricated price makes a fabricated verdict about real money. Platform fee
+- AUTONOMY IS THE POINT — the agent derives product economics ITSELF; manual entry is
+  only the fallback (corrected 2026-09-18 on the owner's challenge: an earlier design
+  made typing costs in the primary path, which is backwards for an autonomous system).
+  `cost_resolver.resolve_all` asks the SHOP what it sells (never a human-supplied list),
+  takes price from the shop listing and product/shipping cost from the fulfilment
+  provider, and records the SOURCE of every figure so a typed guess can never pass for
+  live data (`fully_automatic()`). Manual `product_costs.json` fills only what no
+  connector supplies. `MissingCostsError` is raised rather than defaulting a price —
+  a fabricated price makes a fabricated verdict about real money. Platform fee
   default corrected 0.08 -> 0.06 (TikTok's own published US referral fee since
   2024-04-01); referral-fee sales tax (since 2025-11-01) and the refund admin fee (20%
   of referral, $5 cap) are real but state/return dependent, so `fin_referral_fee_tax_pct`

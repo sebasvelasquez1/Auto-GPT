@@ -50,6 +50,27 @@ class TikTokShopCatalog:
                     and self._config.tiktok_shop_app_secret
                     and self._config.tiktok_shop_access_token)
 
+    def list_products(self, limit: int = 50) -> list[dict]:
+        """The seller's live catalog, with the PRICE each product actually sells at.
+
+        This is the autonomy path: the agent reads what is in the shop instead of being
+        handed a list. Offline it returns fixtures carrying the same fields, so every
+        consumer downstream is exercised before real credentials exist.
+        """
+        return self.list_designs(limit=limit)
+
+    def price_for(self, sku: str) -> float | None:
+        """The listed price of one product, or None if this catalog cannot say.
+
+        None is a real answer meaning "ask someone else" — never a zero, which would
+        silently turn into a free product in the P&L.
+        """
+        for product in self.list_products(limit=500):
+            if product.get("design_id") == sku:
+                price = product.get("price")
+                return float(price) if price else None
+        return None
+
     def list_designs(self, limit: int = 50) -> list[dict]:
         """Return the seller's existing designs: {design_id, title, theme, image_uri}."""
         if not self.available():

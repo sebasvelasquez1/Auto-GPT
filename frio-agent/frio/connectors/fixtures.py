@@ -97,16 +97,38 @@ def offline_keyword_ideas(niche: str) -> list[str]:
 
 # Designs the seller ALREADY owns (would be pulled live from the TikTok Shop
 # product catalog). `theme` doubles as the demand keyword.
+# ``price`` + ``blank`` are here because the agent is meant to derive a product's
+# economics WITHOUT anyone typing them in: price comes from the shop listing, the blank
+# identifies which Printful item the cost is looked up for. The offline fixtures carry
+# both so the fully-automatic path is exercised before real credentials exist.
 EXISTING_DESIGNS: list[dict] = [
     {"design_id": "d-369", "title": "369 Manifestation",
-     "theme": "manifestation journal", "image_uri": "shop://designs/369.png"},
+     "theme": "manifestation journal", "image_uri": "shop://designs/369.png",
+     "price": 29.99, "blank": "tee"},
     {"design_id": "d-moon", "title": "Moon Phases",
-     "theme": "moon phase crystal print", "image_uri": "shop://designs/moon.png"},
+     "theme": "moon phase crystal print", "image_uri": "shop://designs/moon.png",
+     "price": 32.00, "blank": "tee"},
     {"design_id": "d-chakra", "title": "Chakra Align",
-     "theme": "chakra alignment hoodie", "image_uri": "shop://designs/chakra.png"},
+     "theme": "chakra alignment hoodie", "image_uri": "shop://designs/chakra.png",
+     "price": 54.00, "blank": "hoodie"},
     {"design_id": "d-grounded", "title": "Stay Grounded",
-     "theme": "spiritual gangster mantra", "image_uri": "shop://designs/grounded.png"},
+     "theme": "spiritual gangster mantra", "image_uri": "shop://designs/grounded.png",
+     "price": 27.50, "blank": "tank"},
 ]
+
+# Printful blank costs (item + print) and the shipping the seller absorbs, per blank.
+# Offline stand-ins for what the Printful catalog API returns per variant, so the cost
+# resolver has a real code path to exercise. Replaced by live figures once a key exists.
+PRINTFUL_BLANK_COSTS: dict[str, dict] = {
+    "tee": {"product_cost": 12.40, "shipping_cost": 4.69},
+    "tank": {"product_cost": 11.95, "shipping_cost": 4.69},
+    "hoodie": {"product_cost": 26.50, "shipping_cost": 6.99},
+    "mug": {"product_cost": 7.95, "shipping_cost": 5.99},
+}
+
+
+def offline_blank_cost(blank: str) -> dict | None:
+    return PRINTFUL_BLANK_COSTS.get((blank or "").strip().lower())
 
 # Product FORMATS (blanks) ranked by competitor best-seller signal for the niche.
 # This is where "analyze Spiritual Gangster -> sell tank tops, not tees" comes from.
